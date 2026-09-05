@@ -19,7 +19,6 @@
   --radius:14px; --radius-sm:10px;
   --font:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;
   --shadow:0 6px 24px rgba(0,0,0,.35);
-  --banner:44px; /* tiiny.host等の下部バナー回避用の底上げ */
 }
 :root[data-theme="light"]{
   --bg:#e9ece6; --surface:#f6f7f3; --surface2:#eef0ea; --line:#d5dbd3;
@@ -41,12 +40,12 @@ header h1{font-size:18px; font-weight:650; letter-spacing:.04em; margin:0}
 header .sub{font-size:11px; color:var(--faint); letter-spacing:.12em}
 .iconbtn{background:none; border:1px solid var(--line); border-radius:10px; width:38px; height:38px; display:grid; place-items:center; color:var(--muted)}
 .iconbtn:active{background:var(--surface2)}
-main{padding:14px 16px calc(100px + var(--banner)); max-width:640px; margin:0 auto}
+main{padding:14px 16px 100px; max-width:640px; margin:0 auto}
 section.view{display:none} section.view.active{display:block}
 
 nav.tabbar{position:fixed; left:0; right:0; bottom:0; z-index:30; display:grid; grid-template-columns:repeat(5,1fr);
   background:color-mix(in srgb,var(--bg) 92%, transparent); backdrop-filter:blur(8px); border-top:1px solid var(--line);
-  padding:6px 6px calc(6px + var(--banner) + env(safe-area-inset-bottom));}
+  padding:6px 6px calc(6px + env(safe-area-inset-bottom));}
 nav.tabbar button{background:none; border:0; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 0; color:var(--faint); font-size:10.5px; letter-spacing:.04em; border-radius:10px}
 nav.tabbar button .g{width:23px; height:23px}
 nav.tabbar button.active{color:var(--accent)}
@@ -87,7 +86,7 @@ nav.tabbar button{font-size:10px}
 .weekfoot{margin-top:14px; display:flex; gap:8px; flex-wrap:wrap}
 .weekfoot button{flex:1; min-width:140px; background:var(--surface); border:1px solid var(--line); color:var(--muted); border-radius:var(--radius-sm); padding:11px; font-size:12.5px}
 
-.fab{position:fixed; right:18px; bottom:calc(82px + var(--banner) + env(safe-area-inset-bottom)); z-index:25; width:56px; height:56px; border-radius:18px; border:0; background:var(--accent); color:#12100a; font-size:30px; display:grid; place-items:center; box-shadow:var(--shadow)}
+.fab{position:fixed; right:18px; bottom:calc(82px + env(safe-area-inset-bottom)); z-index:25; width:56px; height:56px; border-radius:18px; border:0; background:var(--accent); color:#12100a; font-size:30px; display:grid; place-items:center; box-shadow:var(--shadow)}
 .fab:active{transform:scale(.96)}
 
 /* タイマー */
@@ -159,7 +158,7 @@ nav.tabbar button{font-size:10px}
 /* モーダル */
 .overlay{position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.5); display:none; align-items:flex-end; justify-content:center}
 .overlay.open{display:flex}
-.sheet{width:100%; max-width:520px; background:var(--surface); border:1px solid var(--line); border-radius:20px 20px 0 0; padding:18px 18px calc(56px + env(safe-area-inset-bottom)); max-height:86vh; overflow:auto; box-shadow:var(--shadow)}
+.sheet{width:100%; max-width:520px; background:var(--surface); border:1px solid var(--line); border-radius:20px 20px 0 0; padding:18px 18px calc(22px + env(safe-area-inset-bottom)); max-height:86vh; overflow:auto; box-shadow:var(--shadow)}
 .sheet h2{margin:2px 0 16px; font-size:16px; font-weight:650}
 .field{margin-bottom:14px}
 .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px; letter-spacing:.04em}
@@ -180,7 +179,7 @@ nav.tabbar button{font-size:10px}
 .palette{display:flex; gap:8px; flex-wrap:wrap; margin-top:4px}
 .palette .pc{width:30px; height:30px; border-radius:8px; border:2px solid transparent}
 .palette .pc.on{border-color:var(--ink)}
-.toast{position:fixed; left:50%; bottom:calc(98px + var(--banner) + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:11px 18px; border-radius:999px; font-size:13px; z-index:80; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; white-space:nowrap}
+.toast{position:fixed; left:50%; bottom:calc(98px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:11px 18px; border-radius:999px; font-size:13px; z-index:80; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; white-space:nowrap}
 .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
 .hint{font-size:12px; color:var(--faint); line-height:1.7; margin-top:2px}
 
@@ -222,6 +221,51 @@ nav.tabbar button{font-size:10px}
 .mtadd input{width:70px; flex:none; background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px; font-size:14px; font-family:inherit}
 .updbar{position:fixed; left:0; right:0; top:0; z-index:90; background:var(--accent); color:#12100a; display:flex; align-items:center; justify-content:center; gap:12px; padding:calc(8px + env(safe-area-inset-top)) 12px 8px; font-size:13px; font-weight:600}
 .updbar button{background:#12100a; color:var(--accent); border:0; border-radius:8px; padding:7px 14px; font-size:13px; font-weight:600}
+
+/* ===== v5：全画面モーダル ===== */
+.overlay.full{align-items:stretch}
+.overlay.full .sheet{max-width:560px; height:100%; max-height:100%; border-radius:0; padding:0; display:flex; flex-direction:column}
+.fhead{position:sticky; top:0; display:flex; align-items:center; gap:10px; padding:calc(12px + env(safe-area-inset-top)) 14px 12px; border-bottom:1px solid var(--line); background:var(--surface); z-index:2}
+.fhead .x{width:38px;height:38px;border:1px solid var(--line);border-radius:10px;background:none;color:var(--muted);display:grid;place-items:center;flex:none;font-size:20px}
+.fhead .ft{font-size:16px; font-weight:650; flex:1}
+.fhead .fsave{background:var(--accent); color:#12100a; border:0; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:600}
+.fbody{flex:1; overflow:auto; padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+
+/* ===== 教材アイコン ===== */
+.micon{border-radius:26%; overflow:hidden; flex:none; display:grid; place-items:center; color:#12100a; font-weight:700; background:var(--surface2)}
+.micon img{width:100%;height:100%;object-fit:cover;display:block}
+.micon.s{width:22px;height:22px;font-size:11px;border-radius:24%}
+.micon.m{width:30px;height:30px;font-size:14px}
+.micon.l{width:44px;height:44px;font-size:20px}
+.micon.xl{width:76px;height:76px;font-size:34px;border-radius:24%}
+.iconpick{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:6px}
+.iconpick button{aspect-ratio:1;border:1px solid var(--line);background:var(--bg);border-radius:12px;font-size:22px;display:grid;place-items:center}
+.iconpick button.on{border-color:var(--accent);background:var(--surface2)}
+.iconopts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.iconopts button{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px;font-size:13px}
+
+/* ===== 画像クロップ ===== */
+.cropwrap{width:min(80vw,320px);height:min(80vw,320px);margin:8px auto;border-radius:16px;overflow:hidden;position:relative;background:#000;touch-action:none}
+.cropwrap img{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;user-select:none;-webkit-user-drag:none;pointer-events:none}
+.cropwrap .grid{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.crophint{text-align:center;font-size:12px;color:var(--faint);margin-top:8px}
+
+/* ===== タスクのカード化（アイコン＋進捗バー＋科目色帯）===== */
+.task{border-left:3px solid var(--tc,var(--line))}
+.task .ticon{margin-right:2px}
+.prog{height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;margin-top:6px}
+.prog>span{display:block;height:100%;border-radius:3px;background:var(--done)}
+.task.auto{background:linear-gradient(90deg,color-mix(in srgb,var(--tc) 10%,var(--surface)),var(--surface) 40%)}
+.check.pop{animation:pop .32s ease}
+@keyframes pop{0%{transform:scale(.7)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+/* 今日の残り */
+.todaybar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:10px}
+.todaybar b{color:var(--ink);font-weight:650}
+.todaybar .sp{margin-left:auto;color:var(--faint)}
+
+/* タイマーの教材アイコン */
+.dial .ticonbig{margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -369,6 +413,7 @@ let SUBJECTS=[], MATERIALS=[], TASKS=[], SESSIONS=[];
 let planMode='week', dayDate=today(), weekStart=mondayOf(new Date());
 let statPeriod='week', expanded=new Set();
 let running=null, tick=null, selectedSub=null, selectedMat=null;
+let HAPTICS=false;
 
 const DEFAULT_SUBJECTS=[
   {name:'TOEFL',color:'#e0a93b'},{name:'専門科目',color:'#6fae86'},
@@ -379,6 +424,7 @@ async function loadAll(){
   SUBJECTS=await getS('subjects',null)||(await setS('subjects',DEFAULT_SUBJECTS),DEFAULT_SUBJECTS);
   MATERIALS=await getAll('materials'); TASKS=await getAll('tasks'); SESSIONS=await getAll('sessions');
   running=await getS('running',null);
+  HAPTICS=await getS('haptics',false)||false;
 }
 const colorOf=name=>(SUBJECTS.find(s=>s.name===name)||{}).color||'#9a8fb0';
 const materialsOf=sub=>MATERIALS.filter(m=>m.subjectName===sub && !m.archived);
@@ -386,7 +432,50 @@ const materialName=id=>{const m=MATERIALS.find(x=>x.id===id);return m?m.name:'�
 const matById=id=>MATERIALS.find(m=>m.id===id);
 const mpuOf=id=>{const m=matById(id);return (m&&m.minutesPerUnit)||30;};
 const unitLabelOf=id=>{const m=matById(id);return (m&&m.unitLabel)||'単位';};
-function addMaterial(sub,name){const m={id:uid(),name,subjectName:sub,archived:false,unitLabel:'単位',minutesPerUnit:30,splittable:true,obs:[],createdTs:Date.now()};MATERIALS.push(m);return putV('materials',m).then(()=>m.id);}
+function addMaterial(sub,name){const m={id:uid(),name,subjectName:sub,archived:false,unitLabel:'単位',minutesPerUnit:30,splittable:true,obs:[],icon:null,createdTs:Date.now()};MATERIALS.push(m);return putV('materials',m).then(()=>m.id);}
+const ICON_PRESETS=['📕','📘','📗','📙','📓','📖','✏️','🖊️','📝','🎧','🗣️','🔤','🧮','📐','🌐','✈️','💹','📊','🧠','⏱️','🔬','💬'];
+function matIconHTML(m,size){
+  const cls='micon '+(size||'m');
+  if(m&&m.icon&&m.icon.type==='image'&&m.icon.data) return `<span class="${cls}"><img src="${m.icon.data}" alt=""></span>`;
+  const bg=colorOf(m?m.subjectName:'');
+  if(m&&m.icon&&m.icon.type==='preset'&&m.icon.value) return `<span class="${cls}" style="background:${bg}">${m.icon.value}</span>`;
+  const ini=(m&&m.name)?[...m.name][0]:'?';
+  return `<span class="${cls}" style="background:${bg}">${esc(ini)}</span>`;
+}
+/* 画像クロップ（正方形・ドラッグ＋ピンチ、96pxへリサイズしてJPEG化） */
+function openCropper(file, cb){
+  const url=URL.createObjectURL(file);
+  $('#sheet').innerHTML=`<div class="fhead"><button class="x" id="crX" aria-label="閉じる">×</button><div class="ft">画像を調整</div><button class="fsave" id="crOK">決定</button></div>
+    <div class="fbody"><div class="cropwrap" id="crBox"><img id="crImg" src="${url}"><div class="grid"></div></div><div class="crophint">ドラッグで移動・ピンチで拡大</div></div>`;
+  $('#overlay').classList.add('open','full'); sheetClick=null;
+  const box=$('#crBox'), img=$('#crImg');
+  let C=box.clientWidth||280, nw=0,nh=0,base=1,scale=1,tx=0,ty=0;
+  const apply=()=>{img.style.width=(nw*base*scale)+'px';img.style.height=(nh*base*scale)+'px';img.style.transform=`translate(${tx}px,${ty}px)`;};
+  const clamp=()=>{const w=nw*base*scale,h=nh*base*scale;if(scale<1)scale=1;if(tx>0)tx=0;if(ty>0)ty=0;if(tx<C-w)tx=C-w;if(ty<C-h)ty=C-h;};
+  img.onload=()=>{C=box.clientWidth||280;nw=img.naturalWidth;nh=img.naturalHeight;base=Math.max(C/nw,C/nh);scale=1;tx=(C-nw*base)/2;ty=(C-nh*base)/2;apply();};
+  const pts=new Map(); let startDist=0,startScale=1,startMid=null,startTx=0,startTy=0,panLast=null;
+  const dist=()=>{const a=[...pts.values()];return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);};
+  const mid=()=>{const a=[...pts.values()];return{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2};};
+  box.addEventListener('touchstart',e=>{e.preventDefault();for(const t of e.touches)pts.set(t.identifier,{x:t.clientX,y:t.clientY});
+    if(e.touches.length>=2){startDist=dist();startScale=scale;startMid=mid();startTx=tx;startTy=ty;}else{panLast={x:e.touches[0].clientX,y:e.touches[0].clientY};}},{passive:false});
+  box.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.touches){if(pts.has(t.identifier))pts.set(t.identifier,{x:t.clientX,y:t.clientY});}
+    if(e.touches.length>=2){const r=box.getBoundingClientRect();scale=startScale*(dist()/startDist);const m=mid();
+      const ix=(startMid.x-r.left-startTx)/(base*startScale), iy=(startMid.y-r.top-startTy)/(base*startScale);
+      tx=(m.x-r.left)-ix*base*scale; ty=(m.y-r.top)-iy*base*scale; clamp();apply();}
+    else if(e.touches.length===1&&panLast){const t=e.touches[0];tx+=t.clientX-panLast.x;ty+=t.clientY-panLast.y;panLast={x:t.clientX,y:t.clientY};clamp();apply();}},{passive:false});
+  box.addEventListener('touchend',e=>{e.preventDefault();pts.clear();for(const t of e.touches)pts.set(t.identifier,{x:t.clientX,y:t.clientY});
+    if(e.touches.length>=2){startDist=dist();startScale=scale;startMid=mid();startTx=tx;startTy=ty;panLast=null;}
+    else if(e.touches.length===1){panLast={x:e.touches[0].clientX,y:e.touches[0].clientY};}else panLast=null;},{passive:false});
+  let md=false,ml=null;
+  box.addEventListener('mousedown',e=>{md=true;ml={x:e.clientX,y:e.clientY};});
+  window.addEventListener('mousemove',e=>{if(!md)return;tx+=e.clientX-ml.x;ty+=e.clientY-ml.y;ml={x:e.clientX,y:e.clientY};clamp();apply();});
+  window.addEventListener('mouseup',()=>{md=false;});
+  $('#crX').onclick=()=>{URL.revokeObjectURL(url);closeSheet();};
+  $('#crOK').onclick=()=>{const bs=base*scale;const sx=(0-tx)/bs,sy=(0-ty)/bs,sw=C/bs,sh=C/bs;
+    const cv=document.createElement('canvas');cv.width=96;cv.height=96;const ctx=cv.getContext&&cv.getContext('2d');
+    if(!ctx){toast('この環境では画像処理ができません');return;}
+    try{ctx.drawImage(img,sx,sy,sw,sh,0,0,96,96);const data=cv.toDataURL('image/jpeg',0.82);URL.revokeObjectURL(url);cb(data);}catch(err){toast('画像の処理に失敗しました');}};
+}
 
 /* セッション由来の集計（実績はここから毎回算出＝手動編集にも整合） */
 function actualMap(){const m={};SESSIONS.forEach(s=>{if(s.taskId)m[s.taskId]=(m[s.taskId]||0)+s.min;});return m;}
@@ -421,7 +510,7 @@ function renderPlan(){
 function renderWeek(){
   const ws=dstr(weekStart), we=addDays(ws,6), a=parseD(ws), b=parseD(we);
   $('#planRange').textContent=`${a.getMonth()+1}/${a.getDate()} – ${b.getMonth()+1}/${b.getDate()}`;
-  const body=$('#planBody'); body.innerHTML=''; const td=today();
+  const body=$('#planBody'); body.innerHTML=todayRemainHTML(); const td=today();
   const act=actualMap(), dtot=dayTotalMap();
   for(let i=0;i<7;i++){
     const ds=addDays(ws,i), d=parseD(ds);
@@ -441,26 +530,30 @@ function renderDay(){
   // その日の科目別合計
   const bySub={}; SESSIONS.filter(s=>dstr(new Date(s.startTs))===dayDate).forEach(s=>bySub[s.subject]=(bySub[s.subject]||0)+s.min);
   const sum=Object.entries(bySub).sort((a,b)=>b[1]-a[1]);
-  let h=`<div class="day${dayDate===td?' today':''}"><div class="dhead"><span class="dnum num">${d.getDate()}</span><span class="dwk">${wkOf(dayDate)}</span></div></div>`;
+  let h=todayRemainHTML();
+  h+=`<div class="day${dayDate===td?' today':''}"><div class="dhead"><span class="dnum num">${d.getDate()}</span><span class="dwk">${wkOf(dayDate)}</span></div></div>`;
   h+=sum.length?`<div class="daysum">`+sum.map(([n,m])=>`<span class="pill"><span class="cdot" style="background:${colorOf(n)}"></span>${esc(n)} ${fmtDur(m)}</span>`).join('')+`</div>`:``;
   if(!list.length) h+=`<div class="empty" style="padding:14px 6px">この日の予定はありません。右下の＋で追加できます。</div>`;
   else list.forEach(t=>h+=taskHTML(t,act));
   body.innerHTML=h;
 }
 function taskHTML(t,act){
-  const c=colorOf(t.subject), a=act[t.id]||0, meta=[];
+  const c=colorOf(t.subject), a=act[t.id]||0, m=t.materialId?matById(t.materialId):null, meta=[];
   if(t.time) meta.push(`<span class="num">${t.time}</span>`);
   meta.push(esc(t.subject)+(t.materialId?` / ${esc(materialName(t.materialId))}`:''));
   if(t.plannedMin) meta.push(`<span class="num">予定 ${fmtDur(t.plannedMin)}</span>`);
   if(a) meta.push(`<span class="num">実績 ${fmtDur(a)}</span>`);
   if(t.carryCount) meta.push(`<span class="carry num">繰越${t.carryCount}</span>`);
   if(t.origin==='auto') meta.push(`<span style="color:var(--faint)">配分${t.materialId&&t.planUnits?` 約${t.planUnits}${unitLabelOf(t.materialId)}`:''}</span>`);
-  return `<div class="task${t.status==='done'?' done':''}" data-id="${t.id}"><span class="dot" style="background:${c}"></span>
-    <div class="body"><div class="ttl">${esc(t.title)}</div><div class="meta">${meta.join('<span style="color:var(--faint)">·</span>')}</div></div>
+  const icon = m ? `<span class="ticon">${matIconHTML(m,'m')}</span>` : `<span class="dot" style="background:${c}"></span>`;
+  const pct = (t.plannedMin && a) ? Math.min(100,Math.round(a/t.plannedMin*100)) : (a?100:0);
+  const prog = (t.plannedMin) ? `<div class="prog"><span style="width:${pct}%;background:${a>=t.plannedMin?'var(--done)':c}"></span></div>` : ``;
+  return `<div class="task${t.status==='done'?' done':''}${t.origin==='auto'?' auto':''}" data-id="${t.id}" style="--tc:${c}">${icon}
+    <div class="body"><div class="ttl">${esc(t.title)}</div><div class="meta">${meta.join('<span style="color:var(--faint)">·</span>')}</div>${prog}</div>
     <button class="check" data-check="${t.id}" aria-label="完了切替"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l5 5L20 6"/></svg></button></div>`;
 }
 $('#planBody').addEventListener('click',e=>{
-  const chk=e.target.closest('[data-check]'); if(chk){toggleDone(chk.dataset.check);e.stopPropagation();return;}
+  const chk=e.target.closest('[data-check]'); if(chk){const wasDone=(TASKS.find(x=>x.id===chk.dataset.check)||{}).status==='done'; toggleDone(chk.dataset.check); if(!wasDone){chk.classList.add('pop');if(HAPTICS&&navigator.vibrate)navigator.vibrate(18);} e.stopPropagation();return;}
   const go=e.target.closest('[data-goday]'); if(go){dayDate=go.dataset.goday;planMode='day';$('#modeSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.m==='day'));renderPlan();return;}
   const task=e.target.closest('.task'); if(task) openTaskSheet(task.dataset.id);
 });
@@ -469,33 +562,38 @@ $('#carryOverdue').onclick=async()=>{const td=today();const g=TASKS.filter(t=>t.
 $('#carryNextWeek').onclick=async()=>{const ws=dstr(weekStart),we=addDays(ws,6);const g=TASKS.filter(t=>t.status!=='done'&&t.date>=ws&&t.date<=we);if(!g.length){toast('今週の未完了はありません');return;}if(!confirm(`${g.length}件を来週へ繰り越しますか？`))return;for(const t of g){t.date=addDays(t.date,7);t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);};
 
 /* ================= 予定の追加・編集 ================= */
+function todayRemainHTML(){
+  const td=today(); const list=TASKS.filter(t=>t.date===td); if(!list.length) return '';
+  const undone=list.filter(t=>t.status!=='done'); const remainMin=undone.reduce((a,t)=>a+(t.plannedMin||0),0);
+  return `<div class="todaybar">今日 <b>${undone.length}</b> 件${remainMin?` / <b>${fmtDur(remainMin)}</b>`:''} 残り<span class="sp">${list.length-undone.length}/${list.length} 完了</span></div>`;
+}
 function matChips(sub,selId){
   let h=`<button type="button" class="chip mat${!selId?' on':''}" data-mat="">指定なし</button>`;
-  materialsOf(sub).forEach(m=>h+=`<button type="button" class="chip mat${selId===m.id?' on':''}" data-mat="${m.id}">${esc(m.name)}</button>`);
+  materialsOf(sub).forEach(m=>h+=`<button type="button" class="chip mat${selId===m.id?' on':''}" data-mat="${m.id}">${matIconHTML(m,'s')}${esc(m.name)}</button>`);
   h+=`<button type="button" class="chip mat add" data-mat="__add">＋教材</button>`; return h;
 }
 function openTaskForm(dateDefault,editTask){
   const t=editTask||{}; let sub=t.subject||SUBJECTS[0].name, matId=t.materialId||null;
   const subChips=SUBJECTS.map(s=>`<button type="button" class="chip${sub===s.name?' on':''}" data-sub="${esc(s.name)}"><span class="cdot" style="background:${s.color}"></span>${esc(s.name)}</button>`).join('');
-  sheet(`
-    <h2>${editTask?'予定を編集':'予定を追加'}</h2>
+  const save=async()=>{const title=$('#fTitle').value.trim();if(!title){toast('やることを入力してください');return;}
+    const rec=editTask?{...editTask}:{id:uid(),status:'todo',carryCount:0,createdTs:Date.now()};
+    rec.origin='manual';
+    rec.title=title;rec.subject=sub;rec.materialId=matId;rec.date=$('#fDate').value||today();rec.time=$('#fTime').value||'';rec.plannedMin=parseInt($('#fMin').value)||0;
+    await putV('tasks',rec); if(editTask){const i=TASKS.findIndex(x=>x.id===rec.id);TASKS[i]=rec;}else TASKS.push(rec);
+    closeSheet();renderPlan();toast(editTask?'保存しました':'追加しました');};
+  formModal(editTask?'予定を編集':'予定を追加',`
     <div class="field"><label>科目</label><div class="chips" id="fSub">${subChips}</div></div>
     <div class="field"><label>教材（任意）</label><div class="chips" id="fMat">${matChips(sub,matId)}</div></div>
     <div class="field"><label>やること</label><input id="fTitle" placeholder="例）Reading 演習 2セット" value="${esc(t.title||'')}"></div>
     <div class="field"><div class="row"><div><label>日付</label><input type="date" id="fDate" value="${t.date||dateDefault||today()}"></div><div><label>開始時刻（任意）</label><input type="time" id="fTime" value="${t.time||''}"></div></div></div>
     <div class="field"><label>予定時間（分・任意）</label><input type="number" inputmode="numeric" id="fMin" placeholder="例）60" value="${t.plannedMin||''}"></div>
-    <div class="actions">${editTask?'<button class="btn ghost" id="fDelete">削除</button>':''}<button class="btn primary" id="fSave">${editTask?'保存':'追加'}</button></div>`);
+    ${editTask?'<button class="btn ghost" id="fDelete" style="width:100%;margin-top:8px">この予定を削除</button>':''}`,
+    {saveLabel:editTask?'保存':'追加',onSave:save});
   const reMat=()=>{$('#fMat').innerHTML=matChips(sub,matId);};
   $('#fSub').addEventListener('click',e=>{const b=e.target.closest('[data-sub]');if(!b)return;sub=b.dataset.sub;matId=null;$('#fSub').querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c===b));reMat();});
   $('#fMat').addEventListener('click',async e=>{const b=e.target.closest('[data-mat]');if(!b)return;const v=b.dataset.mat;
     if(v==='__add'){const n=prompt('教材名を入力');if(n&&n.trim()){matId=await addMaterial(sub,n.trim());reMat();}return;}
     matId=v||null;$('#fMat').querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c===b));});
-  $('#fSave').onclick=async()=>{const title=$('#fTitle').value.trim();if(!title){toast('やることを入力してください');return;}
-    const rec=editTask?{...editTask}:{id:uid(),status:'todo',carryCount:0,createdTs:Date.now()};
-    rec.origin='manual'; // 手動で作成/編集したものは配分の再生成から保護
-    rec.title=title;rec.subject=sub;rec.materialId=matId;rec.date=$('#fDate').value||today();rec.time=$('#fTime').value||'';rec.plannedMin=parseInt($('#fMin').value)||0;
-    await putV('tasks',rec); if(editTask){const i=TASKS.findIndex(x=>x.id===rec.id);TASKS[i]=rec;}else TASKS.push(rec);
-    closeSheet();renderPlan();toast(editTask?'保存しました':'追加しました');};
   if(editTask)$('#fDelete').onclick=()=>removeTask(editTask.id);
 }
 function openTaskSheet(id){
@@ -537,12 +635,14 @@ function renderTimerMat(){
 }
 function updateTimerUI(){
   const dial=$('#dial'),disp=$('#timeDisp'),lbl=$('#timerLbl'),ss=$('#btnStartStop'),dc=$('#btnDiscard');
+  const curMat=running?running.materialId:selectedMat;
+  const bigIcon=curMat&&matById(curMat)?`<div class="ticonbig">${matIconHTML(matById(curMat),'xl')}</div>`:'';
   if(running){dial.classList.add('run');const sec=Math.floor((Date.now()-running.startTs)/1000);
-    disp.textContent=`${two(Math.floor(sec/3600))}:${two(Math.floor(sec/60)%60)}:${two(sec%60)}`;
+    disp.innerHTML=`${bigIcon}<div class="time num">${two(Math.floor(sec/3600))}:${two(Math.floor(sec/60)%60)}:${two(sec%60)}</div>`;
     const mat=running.materialId?' / '+materialName(running.materialId):'';
     lbl.textContent=(running.label?running.subject+mat+'｜'+running.label:running.subject+mat);
     ss.textContent='停止';ss.className='btn stop';dc.style.display='';}
-  else{dial.classList.remove('run');disp.textContent='00:00:00';lbl.textContent='';ss.textContent='開始';ss.className='btn primary';dc.style.display='none';}
+  else{dial.classList.remove('run');disp.innerHTML=`${bigIcon}<div class="time num">00:00:00</div>`;lbl.textContent='';ss.textContent='開始';ss.className='btn primary';dc.style.display='none';}
 }
 async function startTimer(subject,taskId,label,materialId){
   if(running)return; selectedSub=subject||selectedSub; if(materialId!==undefined)selectedMat=materialId;
@@ -599,9 +699,11 @@ function renderFeed(){
   let h='',cur='';
   sorted.forEach(s=>{const d=dstr(new Date(s.startTs));
     if(d!==cur){cur=d;const dd=parseD(d);h+=`<div class="fdate">${dd.getMonth()+1}/${dd.getDate()}（${wkOf(d)}）</div>`;}
+    const m=s.materialId?matById(s.materialId):null;
     const mat=s.materialId?' <span style="color:var(--faint)">/ '+esc(materialName(s.materialId))+'</span>':'';
     const tm=s.manual?'<span class="ftag">手動</span>':new Date(s.startTs).toTimeString().slice(0,5);
-    h+=`<div class="frow" data-sid="${s.id}"><span class="dot" style="background:${colorOf(s.subject)}"></span>
+    const ic=m?matIconHTML(m,'m'):`<span class="dot" style="background:${colorOf(s.subject)}"></span>`;
+    h+=`<div class="frow" data-sid="${s.id}">${ic}
       <div class="body"><div class="ttl">${esc(s.subject)}${mat}</div><div class="meta">${tm}</div></div>
       <div class="fmin num">${fmtDur(s.min)}</div></div>`;});
   list.innerHTML=h;
@@ -613,25 +715,24 @@ function openSessionEdit(sid){
   let sub=s?s.subject:(SUBJECTS[0].name), matId=s?s.materialId:null;
   const date=s?dstr(new Date(s.startTs)):today();
   const subChips=SUBJECTS.map(x=>`<button type="button" class="chip${sub===x.name?' on':''}" data-sub="${esc(x.name)}"><span class="cdot" style="background:${x.color}"></span>${esc(x.name)}</button>`).join('');
-  sheet(`<h2>${s?'記録を編集':'手動で記録を追加'}</h2>
+  const save=async()=>{const min=parseInt($('#rMin').value)||0;if(min<1){toast('時間（分）を入力してください');return;}
+    const dsel=$('#rDate').value||today();
+    if(s){const base=parseD(dsel); if(!s.manual){const o=new Date(s.startTs);base.setHours(o.getHours(),o.getMinutes(),0,0);}else base.setHours(12,0,0,0);
+      s.subject=sub;s.color=colorOf(sub);s.materialId=matId;s.min=min;s.startTs=base.getTime();s.endTs=base.getTime()+min*60000;await putV('sessions',s);}
+    else{const base=parseD(dsel);base.setHours(12,0,0,0);const ns={id:uid(),taskId:null,subject:sub,color:colorOf(sub),materialId:matId,startTs:base.getTime(),endTs:base.getTime()+min*60000,min,manual:true};await putV('sessions',ns);SESSIONS.push(ns);}
+    closeSheet();renderFeed();toast(s?'保存しました':'追加しました');};
+  formModal(s?'記録を編集':'手動で記録を追加',`
     <div class="field"><label>科目</label><div class="chips" id="rSub">${subChips}</div></div>
     <div class="field"><label>教材（任意）</label><div class="chips" id="rMat">${matChips(sub,matId)}</div></div>
     <div class="field"><div class="row"><div><label>日付</label><input type="date" id="rDate" value="${date}"></div><div><label>時間（分）</label><input type="number" inputmode="numeric" id="rMin" placeholder="例）45" value="${s?s.min:''}"></div></div></div>
     ${s&&!s.manual?'<div class="hint">これはタイマーで計測した記録です。時間を編集すると内容が上書きされます。</div>':''}
-    <div class="actions">${s?'<button class="btn ghost" id="rDelete">削除</button>':''}<button class="btn primary" id="rSave">${s?'保存':'追加'}</button></div>`);
+    ${s?'<button class="btn ghost" id="rDelete" style="width:100%;margin-top:8px">この記録を削除</button>':''}`,
+    {saveLabel:s?'保存':'追加',onSave:save});
   const reMat=()=>{$('#rMat').innerHTML=matChips(sub,matId);};
   $('#rSub').addEventListener('click',e=>{const b=e.target.closest('[data-sub]');if(!b)return;sub=b.dataset.sub;matId=null;$('#rSub').querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c===b));reMat();});
   $('#rMat').addEventListener('click',async e=>{const b=e.target.closest('[data-mat]');if(!b)return;const v=b.dataset.mat;
     if(v==='__add'){const n=prompt('教材名を入力');if(n&&n.trim()){matId=await addMaterial(sub,n.trim());reMat();}return;}
     matId=v||null;$('#rMat').querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c===b));});
-  $('#rSave').onclick=async()=>{const min=parseInt($('#rMin').value)||0;if(min<1){toast('時間（分）を入力してください');return;}
-    const dsel=$('#rDate').value||today();
-    if(s){const base=parseD(dsel); if(!s.manual){const o=new Date(s.startTs);base.setHours(o.getHours(),o.getMinutes(),0,0);}else base.setHours(12,0,0,0);
-      s.subject=sub;s.color=colorOf(sub);s.materialId=matId;s.min=min;s.startTs=base.getTime();s.endTs=base.getTime()+min*60000;
-      await putV('sessions',s);}
-    else{const base=parseD(dsel);base.setHours(12,0,0,0);const ns={id:uid(),taskId:null,subject:sub,color:colorOf(sub),materialId:matId,startTs:base.getTime(),endTs:base.getTime()+min*60000,min,manual:true};
-      await putV('sessions',ns);SESSIONS.push(ns);}
-    closeSheet();renderFeed();toast(s?'保存しました':'追加しました');};
   if(s)$('#rDelete').onclick=async()=>{if(!confirm('この記録を削除しますか？'))return;await delV('sessions',s.id);SESSIONS=SESSIONS.filter(x=>x.id!==s.id);closeSheet();renderFeed();toast('削除しました');};
 }
 
@@ -681,13 +782,14 @@ $('#periodSeg').addEventListener('click',e=>{const b=e.target.closest('[data-p]'
 $('#btnData').onclick=()=>{
   sheet(`<h2>データと設定</h2>
     <div class="list-item" data-d="theme"><span class="li-ic">◐</span>テーマ切替（自動 / 明 / 暗）</div>
+    <div class="list-item" data-d="haptics"><span class="li-ic">〜</span>完了時の振動：<span id="hapState" style="margin-left:4px;color:var(--accent)">${HAPTICS?'ON':'OFF'}</span></div>
     <div class="list-item" data-d="subjects"><span class="li-ic">＃</span>科目・教材を管理</div>
     <div class="list-item" data-d="export"><span class="li-ic">⤓</span>バックアップを書き出す</div>
     <div class="list-item" data-d="import"><span class="li-ic">⤒</span>バックアップから復元</div>
     <div class="hint" style="margin-top:14px">データはこの端末の中だけに保存されています。機種変更や消去に備え、ときどき「書き出し」で控えを保存してください。</div>
     <input type="file" id="importFile" accept="application/json" style="display:none">`, e=>{
     const it=e.target.closest('[data-d]');if(!it)return;const d=it.dataset.d;
-    if(d==='theme')cycleTheme(); if(d==='subjects')openSubjects(); if(d==='export')exportData(); if(d==='import')$('#importFile').click();});
+    if(d==='theme')cycleTheme(); if(d==='haptics'){HAPTICS=!HAPTICS;setS('haptics',HAPTICS);$('#hapState').textContent=HAPTICS?'ON':'OFF';if(HAPTICS&&navigator.vibrate)navigator.vibrate(18);} if(d==='subjects')openSubjects(); if(d==='export')exportData(); if(d==='import')$('#importFile').click();});
   $('#importFile').onchange=importData;
 };
 async function cycleTheme(){const cur=await getS('theme','auto');const next=cur==='auto'?'light':cur==='light'?'dark':'auto';await setS('theme',next);applyTheme(next);toast('テーマ：'+({auto:'自動',light:'明るい',dark:'暗い'}[next]));}
@@ -719,7 +821,7 @@ function editSubject(idx){
 }
 function openMaterials(sub){
   const mats=MATERIALS.filter(m=>m.subjectName===sub);
-  const rows=mats.length?mats.map(m=>`<div class="subrow"><span class="snm" style="${m.archived?'color:var(--faint);text-decoration:line-through':''}">${esc(m.name)} <span style="color:var(--faint);font-size:11px">1${esc(m.unitLabel||'単位')}=${m.minutesPerUnit||30}分${m.splittable?'・分割可':'・分割不可'}</span></span><button data-set="${m.id}">設定</button><button data-arc="${m.id}">${m.archived?'復活':'隠す'}</button></div>`).join(''):'<div class="hint">まだ教材がありません。</div>';
+  const rows=mats.length?mats.map(m=>`<div class="subrow"><span style="flex:none">${matIconHTML(m,'m')}</span><span class="snm" style="${m.archived?'color:var(--faint);text-decoration:line-through':''}">${esc(m.name)} <span style="color:var(--faint);font-size:11px">1${esc(m.unitLabel||'単位')}=${m.minutesPerUnit||30}分${m.splittable!==false?'・分割可':'・分割不可'}</span></span><button data-set="${m.id}">設定</button><button data-arc="${m.id}">${m.archived?'復活':'隠す'}</button></div>`).join(''):'<div class="hint">まだ教材がありません。</div>';
   sheet(`<h2>${esc(sub)} の教材</h2>${rows}<div class="actions"><button class="btn ghost" id="mBack">戻る</button><button class="btn primary" id="mAdd">教材を追加</button></div>`, e=>{
     const set=e.target.closest('[data-set]'),arc=e.target.closest('[data-arc]');
     if(set)editMaterial(set.dataset.set,sub);
@@ -730,20 +832,33 @@ function openMaterials(sub){
 function editMaterial(id,sub){
   const m=matById(id); if(!m){openMaterials(sub);return;}
   const nObs=(m.obs||[]).length;
-  sheet(`<h2>教材の設定</h2>
+  const collect=()=>{ if($('#emName')){m.name=$('#emName').value.trim()||m.name;m.unitLabel=$('#emUnit').value.trim()||'単位';m.minutesPerUnit=Math.max(5,parseInt($('#emMpu').value)||30);m.splittable=$('#emSplit').checked;} };
+  const save=async()=>{collect();await putV('materials',m);openMaterials(sub);};
+  formModal('教材の設定',`
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+      <div id="emIconPrev">${matIconHTML(m,'xl')}</div>
+      <div style="flex:1"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">アイコン</div>
+        <div class="iconopts"><button type="button" id="emUp">画像を選ぶ</button><button type="button" id="emPreset">既定から選ぶ</button><button type="button" id="emAuto">自動</button></div></div>
+    </div>
+    <div id="emPresetBox" style="display:none"><div class="iconpick" id="emPresetGrid">${ICON_PRESETS.map(e=>`<button type="button" data-emoji="${e}">${e}</button>`).join('')}</div></div>
+    <input type="file" id="emFile" accept="image/*" style="display:none">
     <div class="field"><label>教材名</label><input id="emName" value="${esc(m.name)}"></div>
     <div class="field"><div class="row">
       <div><label>単位名（例：セット/章/語）</label><input id="emUnit" value="${esc(m.unitLabel||'単位')}"></div>
       <div><label>1単位=何分</label><input id="emMpu" type="number" inputmode="numeric" value="${m.minutesPerUnit||30}"></div>
     </div></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="emSplit"${m.splittable!==false?' checked':''}>分割を許可する（日をまたいで細切れOK。オフだと1単位はまとめて配置）</label></div>
-    <div class="hint">実測データ：${nObs}件${nObs>=5?'（5件ごとに1単位=分の補正を提案します）':'（5件たまると補正提案）'}</div>
-    <div class="actions"><button class="btn ghost" id="emBack">戻る</button><button class="btn primary" id="emSave">保存</button></div>`);
-  $('#emBack').onclick=()=>openMaterials(sub);
-  $('#emSave').onclick=async()=>{m.name=$('#emName').value.trim()||m.name;m.unitLabel=$('#emUnit').value.trim()||'単位';m.minutesPerUnit=Math.max(5,parseInt($('#emMpu').value)||30);m.splittable=$('#emSplit').checked;await putV('materials',m);openMaterials(sub);};
+    <div class="hint">実測データ：${nObs}件${nObs>=5?'（5件ごとに1単位=分の補正を提案）':'（5件たまると補正提案）'}</div>`,
+    {saveLabel:'保存',onSave:save,onClose:()=>openMaterials(sub)});
+  const refreshIcon=()=>{$('#emIconPrev').innerHTML=matIconHTML(m,'xl');};
+  $('#emUp').onclick=()=>$('#emFile').click();
+  $('#emFile').onchange=e=>{const f=e.target.files[0];if(!f)return;collect();openCropper(f,async(data)=>{m.icon={type:'image',data};await putV('materials',m);editMaterial(id,sub);});};
+  $('#emPreset').onclick=()=>{const b=$('#emPresetBox');b.style.display=b.style.display==='none'?'block':'none';};
+  $('#emPresetGrid').addEventListener('click',async e=>{const b=e.target.closest('[data-emoji]');if(!b)return;collect();m.icon={type:'preset',value:b.dataset.emoji};await putV('materials',m);refreshIcon();$('#emPresetBox').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));});
+  $('#emAuto').onclick=async()=>{collect();m.icon=null;await putV('materials',m);refreshIcon();};
 }
 async function exportData(){
-  const data={app:'gakushu',version:2,exportedAt:new Date().toISOString(),tasks:TASKS,sessions:SESSIONS,materials:MATERIALS,settings:{subjects:SUBJECTS,theme:await getS('theme','auto'),templates:TEMPLATES,targets:TARGETS,mattargets:MATTARGETS,assign:ASSIGN,catchup:CATCHUP}};
+  const data={app:'gakushu',version:2,exportedAt:new Date().toISOString(),tasks:TASKS,sessions:SESSIONS,materials:MATERIALS,settings:{subjects:SUBJECTS,theme:await getS('theme','auto'),haptics:HAPTICS,templates:TEMPLATES,targets:TARGETS,mattargets:MATTARGETS,assign:ASSIGN,catchup:CATCHUP}};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');
   a.href=url;a.download=`gakushu-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('書き出しました');
 }
@@ -756,6 +871,7 @@ async function importData(e){
     for(const s of (data.sessions||[]))await putV('sessions',s);
     for(const m of (data.materials||[]))await putV('materials',m);
     if(data.settings){await setS('subjects',data.settings.subjects||DEFAULT_SUBJECTS);if(data.settings.theme)await setS('theme',data.settings.theme);
+      if(typeof data.settings.haptics==='boolean')await setS('haptics',data.settings.haptics);
       if(data.settings.templates)await setS('templates',data.settings.templates);
       if(data.settings.targets)await setS('targets',data.settings.targets);
       if(data.settings.mattargets)await setS('mattargets',data.settings.mattargets);
@@ -767,8 +883,15 @@ async function importData(e){
 
 /* ================= シート共通 ================= */
 let sheetClick=null;
-function sheet(html,onClick){$('#sheet').innerHTML=html;sheetClick=onClick||null;$('#overlay').classList.add('open');}
-function closeSheet(){$('#overlay').classList.remove('open');sheetClick=null;}
+function sheet(html,onClick){$('#sheet').innerHTML=html;sheetClick=onClick||null;$('#overlay').classList.remove('full');$('#overlay').classList.add('open');}
+function formModal(title,bodyHtml,opts){
+  opts=opts||{};
+  $('#sheet').innerHTML=`<div class="fhead"><button class="x" id="fmX" aria-label="閉じる">×</button><div class="ft">${esc(title)}</div>${opts.saveLabel?`<button class="fsave" id="fmSave">${esc(opts.saveLabel)}</button>`:''}</div><div class="fbody">${bodyHtml}</div>`;
+  sheetClick=opts.onClick||null; $('#overlay').classList.add('open','full');
+  $('#fmX').onclick=opts.onClose||closeSheet;
+  if(opts.onSave)$('#fmSave').onclick=opts.onSave;
+}
+function closeSheet(){$('#overlay').classList.remove('open','full');sheetClick=null;}
 $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeSheet();});
 $('#sheet').addEventListener('click',e=>{if(sheetClick)sheetClick(e);});
 
@@ -885,8 +1008,9 @@ $('#doPreview').onclick=()=>{
     const ext=res.extensions.find(e=>e.date===d);
     h+=`<div class="pvday">${dd.getMonth()+1}/${dd.getDate()}（${wkOf(d)}）${ext?` <span style="color:var(--warn)">延長+${ext.min}分</span>`:''}</div>`;
     items.sort((x,y)=>y.min-x.min).forEach(p=>{const nm=p.materialId?materialName(p.materialId):p.subject;
+      const ic=p.materialId&&matById(p.materialId)?matIconHTML(matById(p.materialId),'s'):`<span class="pd" style="background:${colorOf(p.subject)}"></span>`;
       const u=p.materialId?` <span style="color:var(--faint)">約${Math.round(p.min/mpuOf(p.materialId)*10)/10}${unitLabelOf(p.materialId)}</span>`:'';
-      h+=`<div class="pvrow"><span class="pd" style="background:${colorOf(p.subject)}"></span><span class="pn">${esc(nm)}${u}</span><span class="pv num">${fmtDur(p.min)}</span></div>`;});});
+      h+=`<div class="pvrow">${ic}<span class="pn">${esc(nm)}${u}</span><span class="pv num">${fmtDur(p.min)}</span></div>`;});});
   const probs=[];
   if(res.matShort.length) probs.push('教材が入り切りません：'+res.matShort.map(s=>`${esc(materialName(s.materialId))} あと${s.units}${unitLabelOf(s.materialId)}`).join(' ／ '));
   if(res.subjShort.length) probs.push('科目の週目標に未達：'+res.subjShort.map(s=>`${esc(s.subject)} あと${fmtDur(s.short)}`).join(' ／ '));
@@ -997,7 +1121,7 @@ function openJsonImport(){
 }
 
 /* ================= 自動更新 ================= */
-const APP_VERSION='v4';
+const APP_VERSION='v5';
 async function checkUpdate(){
   try{
     const r=await fetch('./version.json?ts='+Date.now(),{cache:'no-store'});
