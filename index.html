@@ -211,6 +211,17 @@ nav.tabbar button{font-size:10px}
 .pvrow .pv{color:var(--muted); font-size:12px}
 .pvwarn{background:var(--surface2); border:1px solid var(--warn); border-radius:8px; padding:10px 12px; margin:12px 0; font-size:12.5px; color:var(--ink)}
 .pvok{color:var(--done); font-size:12.5px; margin:10px 0}
+.mtrow{display:flex; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px}
+.mtrow .cdot{width:9px;height:9px;border-radius:50%;flex:none}
+.mtrow .mtn{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mtrow .mtu{width:60px; flex:none; background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:7px; font-size:14px; font-family:inherit}
+.mtrow .mtul{color:var(--faint); font-size:11px; flex:none}
+.mtrow .mtdel{background:none;border:0;color:var(--warn);font-size:18px;padding:0 4px}
+.mtadd{display:flex; gap:8px; margin-top:10px}
+.mtadd select{flex:1; min-width:0; background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px; font-size:13px; font-family:inherit}
+.mtadd input{width:70px; flex:none; background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px; font-size:14px; font-family:inherit}
+.updbar{position:fixed; left:0; right:0; top:0; z-index:90; background:var(--accent); color:#12100a; display:flex; align-items:center; justify-content:center; gap:12px; padding:calc(8px + env(safe-area-inset-top)) 12px 8px; font-size:13px; font-weight:600}
+.updbar button{background:#12100a; color:var(--accent); border:0; border-radius:8px; padding:7px 14px; font-size:13px; font-weight:600}
 </style>
 </head>
 <body>
@@ -372,7 +383,10 @@ async function loadAll(){
 const colorOf=name=>(SUBJECTS.find(s=>s.name===name)||{}).color||'#9a8fb0';
 const materialsOf=sub=>MATERIALS.filter(m=>m.subjectName===sub && !m.archived);
 const materialName=id=>{const m=MATERIALS.find(x=>x.id===id);return m?m.name:'（削除済み教材）';};
-function addMaterial(sub,name){const m={id:uid(),name,subjectName:sub,archived:false,createdTs:Date.now()};MATERIALS.push(m);return putV('materials',m).then(()=>m.id);}
+const matById=id=>MATERIALS.find(m=>m.id===id);
+const mpuOf=id=>{const m=matById(id);return (m&&m.minutesPerUnit)||30;};
+const unitLabelOf=id=>{const m=matById(id);return (m&&m.unitLabel)||'単位';};
+function addMaterial(sub,name){const m={id:uid(),name,subjectName:sub,archived:false,unitLabel:'単位',minutesPerUnit:30,splittable:true,obs:[],createdTs:Date.now()};MATERIALS.push(m);return putV('materials',m).then(()=>m.id);}
 
 /* セッション由来の集計（実績はここから毎回算出＝手動編集にも整合） */
 function actualMap(){const m={};SESSIONS.forEach(s=>{if(s.taskId)m[s.taskId]=(m[s.taskId]||0)+s.min;});return m;}
@@ -440,7 +454,7 @@ function taskHTML(t,act){
   if(t.plannedMin) meta.push(`<span class="num">予定 ${fmtDur(t.plannedMin)}</span>`);
   if(a) meta.push(`<span class="num">実績 ${fmtDur(a)}</span>`);
   if(t.carryCount) meta.push(`<span class="carry num">繰越${t.carryCount}</span>`);
-  if(t.origin==='auto') meta.push(`<span style="color:var(--faint)">配分</span>`);
+  if(t.origin==='auto') meta.push(`<span style="color:var(--faint)">配分${t.materialId&&t.planUnits?` 約${t.planUnits}${unitLabelOf(t.materialId)}`:''}</span>`);
   return `<div class="task${t.status==='done'?' done':''}" data-id="${t.id}"><span class="dot" style="background:${c}"></span>
     <div class="body"><div class="ttl">${esc(t.title)}</div><div class="meta">${meta.join('<span style="color:var(--faint)">·</span>')}</div></div>
     <button class="check" data-check="${t.id}" aria-label="完了切替"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l5 5L20 6"/></svg></button></div>`;
@@ -538,7 +552,8 @@ async function startTimer(subject,taskId,label,materialId){
 async function stopTimer(){
   if(!running)return; const end=Date.now(); const min=Math.round(Math.max(0,(end-running.startTs)/60000));
   if(min>=1){const sess={id:uid(),taskId:running.taskId,subject:running.subject,color:running.color,materialId:running.materialId||null,startTs:running.startTs,endTs:end,min,manual:false};
-    await putV('sessions',sess);SESSIONS.push(sess);toast(`${fmtDur(min)}を記録しました`);}
+    await putV('sessions',sess);SESSIONS.push(sess);toast(`${fmtDur(min)}を記録しました`);
+    await recordMpuObservation(sess);}
   else toast('1分未満のため記録しませんでした');
   running=null;await setS('running',null);stopTick();renderTimer();
 }
@@ -548,6 +563,34 @@ function stopTick(){if(tick){clearInterval(tick);tick=null;}}
 $('#btnStartStop').onclick=()=>{running?stopTimer():startTimer(selectedSub,null,'',selectedMat);};
 $('#btnDiscard').onclick=discardTimer;
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&running){updateTimerUI();startTick();}});
+
+/* ===== 実測補正（1単位=分）===== */
+async function recordMpuObservation(sess){
+  if(!sess.taskId||!sess.materialId) return;
+  const task=TASKS.find(t=>t.id===sess.taskId);
+  if(!task||!(task.planUnits>0)) return;               // 配分タスク（量つき）の実測のみ
+  const m=matById(sess.materialId); if(!m) return;
+  const obsMpu=sess.min/task.planUnits;                 // この実測から推定した1単位=分
+  m.obs=(m.obs||[]).concat([Math.round(obsMpu)]);
+  await putV('materials',m);
+  if(m.obs.length%5===0){ proposeMpuUpdate(m); }        // 5件ごとに提案
+}
+function iqrMean(arr){
+  if(arr.length<4) return Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+  const s=[...arr].sort((a,b)=>a-b), q=p=>{const i=(s.length-1)*p, lo=Math.floor(i), hi=Math.ceil(i); return s[lo]+(s[hi]-s[lo])*(i-lo);};
+  const q1=q(0.25), q3=q(0.75), iqr=q3-q1, lo=q1-1.5*iqr, hi=q3+1.5*iqr;
+  const kept=s.filter(x=>x>=lo&&x<=hi); const use=kept.length?kept:s;
+  return Math.round(use.reduce((a,b)=>a+b,0)/use.length);
+}
+function proposeMpuUpdate(m){
+  const suggested=iqrMean(m.obs), cur=m.minutesPerUnit||30;
+  if(suggested===cur){ return; }
+  sheet(`<h2>実測にもとづく補正</h2>
+    <div class="hint" style="margin-bottom:10px">教材「${esc(m.name)}」の実測が ${m.obs.length} 件たまりました。外れ値を除いた平均から、<b>1${esc(m.unitLabel||'単位')} = ${cur}分 → ${suggested}分</b> への更新を提案します。</div>
+    <div class="actions"><button class="btn ghost" id="mpuKeep">据え置き</button><button class="btn primary" id="mpuUpd">更新する</button></div>`);
+  $('#mpuKeep').onclick=closeSheet;
+  $('#mpuUpd').onclick=async()=>{m.minutesPerUnit=suggested;await putV('materials',m);closeSheet();toast(`1${m.unitLabel||'単位'}=${suggested}分に更新しました`);};
+}
 
 /* ================= 記録フィード ================= */
 function renderFeed(){
@@ -676,16 +719,31 @@ function editSubject(idx){
 }
 function openMaterials(sub){
   const mats=MATERIALS.filter(m=>m.subjectName===sub);
-  const rows=mats.length?mats.map(m=>`<div class="subrow"><span class="snm" style="${m.archived?'color:var(--faint);text-decoration:line-through':''}">${esc(m.name)}</span><button data-ren="${m.id}">改名</button><button data-arc="${m.id}">${m.archived?'復活':'アーカイブ'}</button></div>`).join(''):'<div class="hint">まだ教材がありません。</div>';
+  const rows=mats.length?mats.map(m=>`<div class="subrow"><span class="snm" style="${m.archived?'color:var(--faint);text-decoration:line-through':''}">${esc(m.name)} <span style="color:var(--faint);font-size:11px">1${esc(m.unitLabel||'単位')}=${m.minutesPerUnit||30}分${m.splittable?'・分割可':'・分割不可'}</span></span><button data-set="${m.id}">設定</button><button data-arc="${m.id}">${m.archived?'復活':'隠す'}</button></div>`).join(''):'<div class="hint">まだ教材がありません。</div>';
   sheet(`<h2>${esc(sub)} の教材</h2>${rows}<div class="actions"><button class="btn ghost" id="mBack">戻る</button><button class="btn primary" id="mAdd">教材を追加</button></div>`, e=>{
-    const ren=e.target.closest('[data-ren]'),arc=e.target.closest('[data-arc]');
-    if(ren){const m=MATERIALS.find(x=>x.id===ren.dataset.ren);const n=prompt('教材名',m.name);if(n&&n.trim()){m.name=n.trim();putV('materials',m).then(()=>openMaterials(sub));}}
-    if(arc){const m=MATERIALS.find(x=>x.id===arc.dataset.arc);m.archived=!m.archived;putV('materials',m).then(()=>openMaterials(sub));}});
+    const set=e.target.closest('[data-set]'),arc=e.target.closest('[data-arc]');
+    if(set)editMaterial(set.dataset.set,sub);
+    if(arc){const m=matById(arc.dataset.arc);m.archived=!m.archived;putV('materials',m).then(()=>openMaterials(sub));}});
   $('#mBack').onclick=openSubjects;
-  $('#mAdd').onclick=async()=>{const n=prompt('教材名を入力');if(n&&n.trim()){await addMaterial(sub,n.trim());openMaterials(sub);}};
+  $('#mAdd').onclick=async()=>{const n=prompt('教材名を入力');if(n&&n.trim()){const id=await addMaterial(sub,n.trim());editMaterial(id,sub);}};
+}
+function editMaterial(id,sub){
+  const m=matById(id); if(!m){openMaterials(sub);return;}
+  const nObs=(m.obs||[]).length;
+  sheet(`<h2>教材の設定</h2>
+    <div class="field"><label>教材名</label><input id="emName" value="${esc(m.name)}"></div>
+    <div class="field"><div class="row">
+      <div><label>単位名（例：セット/章/語）</label><input id="emUnit" value="${esc(m.unitLabel||'単位')}"></div>
+      <div><label>1単位=何分</label><input id="emMpu" type="number" inputmode="numeric" value="${m.minutesPerUnit||30}"></div>
+    </div></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="emSplit"${m.splittable!==false?' checked':''}>分割を許可する（日をまたいで細切れOK。オフだと1単位はまとめて配置）</label></div>
+    <div class="hint">実測データ：${nObs}件${nObs>=5?'（5件ごとに1単位=分の補正を提案します）':'（5件たまると補正提案）'}</div>
+    <div class="actions"><button class="btn ghost" id="emBack">戻る</button><button class="btn primary" id="emSave">保存</button></div>`);
+  $('#emBack').onclick=()=>openMaterials(sub);
+  $('#emSave').onclick=async()=>{m.name=$('#emName').value.trim()||m.name;m.unitLabel=$('#emUnit').value.trim()||'単位';m.minutesPerUnit=Math.max(5,parseInt($('#emMpu').value)||30);m.splittable=$('#emSplit').checked;await putV('materials',m);openMaterials(sub);};
 }
 async function exportData(){
-  const data={app:'gakushu',version:2,exportedAt:new Date().toISOString(),tasks:TASKS,sessions:SESSIONS,materials:MATERIALS,settings:{subjects:SUBJECTS,theme:await getS('theme','auto'),templates:TEMPLATES,targets:TARGETS,assign:ASSIGN,catchup:CATCHUP}};
+  const data={app:'gakushu',version:2,exportedAt:new Date().toISOString(),tasks:TASKS,sessions:SESSIONS,materials:MATERIALS,settings:{subjects:SUBJECTS,theme:await getS('theme','auto'),templates:TEMPLATES,targets:TARGETS,mattargets:MATTARGETS,assign:ASSIGN,catchup:CATCHUP}};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');
   a.href=url;a.download=`gakushu-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('書き出しました');
 }
@@ -700,6 +758,7 @@ async function importData(e){
     if(data.settings){await setS('subjects',data.settings.subjects||DEFAULT_SUBJECTS);if(data.settings.theme)await setS('theme',data.settings.theme);
       if(data.settings.templates)await setS('templates',data.settings.templates);
       if(data.settings.targets)await setS('targets',data.settings.targets);
+      if(data.settings.mattargets)await setS('mattargets',data.settings.mattargets);
       if(data.settings.assign)await setS('assign',data.settings.assign);
       if(typeof data.settings.catchup==='boolean')await setS('catchup',data.settings.catchup);}
     await loadAll();await loadAlloc();closeSheet();applyTheme(await getS('theme','auto'));switchTab('plan');toast('復元しました');
@@ -714,8 +773,9 @@ $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeSheet
 $('#sheet').addEventListener('click',e=>{if(sheetClick)sheetClick(e);});
 
 /* ================= 配分（週次ターゲット→各日バジェット） ================= */
-let TEMPLATES=[], TARGETS=[], ASSIGN={}, CATCHUP=false;
+let TEMPLATES=[], TARGETS=[], MATTARGETS=[], ASSIGN={}, CATCHUP=false;
 let allocWeekStart=mondayOf(new Date());
+const matsById=()=>Object.fromEntries(MATERIALS.map(m=>[m.id,m]));
 
 function defaultTemplates(){return [
   {id:uid(),name:'平日（授業あり）',blocks:[{s:'14:00',e:'17:00',soft:false},{s:'20:00',e:'21:00',soft:true}]},
@@ -730,6 +790,7 @@ function defaultTargets(){return SUBJECTS.map(s=>{
 async function loadAlloc(){
   TEMPLATES=await getS('templates',null); if(!TEMPLATES){TEMPLATES=defaultTemplates();await setS('templates',TEMPLATES);}
   TARGETS=await getS('targets',null); if(!TARGETS){TARGETS=defaultTargets();await setS('targets',TARGETS);}
+  MATTARGETS=await getS('mattargets',[])||[];
   ASSIGN=await getS('assign',{})||{}; CATCHUP=await getS('catchup',false)||false;
 }
 const t2m=hhmm=>{const[h,m]=hhmm.split(':').map(Number);return h*60+m;};
@@ -737,29 +798,61 @@ function tmplCap(t){let hard=0,soft=0;(t.blocks||[]).forEach(b=>{const d=Math.ma
 const tmplById=id=>TEMPLATES.find(t=>t.id===id);
 function weekCaps(weekDates){const caps={};weekDates.forEach(d=>{const t=ASSIGN[d]?tmplById(ASSIGN[d]):null;caps[d]=t?tmplCap(t):{hard:0,soft:0};});return caps;}
 
-/* 純粋関数：配分エンジン（方式4＝フロア＋比率、残りは「最も不足の科目」へ5分ずつ） */
-function allocateWeek(weekDates, caps, targets, useSoft){
-  const perDay={}, allocated={};
-  weekDates.forEach(d=>perDay[d]={}); targets.forEach(t=>allocated[t.subject]=0);
-  const dayCap={}, dayRemain={};
-  weekDates.forEach(d=>{const c=caps[d]||{hard:0,soft:0}; dayCap[d]=c.hard+(useSoft?c.soft:0); dayRemain[d]=dayCap[d];});
-  // フロア確保（毎日 max(絶対分, キャパ×%)）
-  targets.filter(t=>(t.floorMin>0||t.floorPct>0)).forEach(t=>{
+/* 純粋関数：配分エンジンv4
+   科目週目標=総量。教材ターゲット(量)を分に換算し具体ピースとして優先配置。
+   分割可=20分ブロック／分割不可=1単位。日に収まらない時は超過≤25かつ日次延長合計≤25なら押し込み、
+   超えるなら別日へ、どこにも入らなければあふれ明示。フロアは科目日次下限（教材でも汎用でも充足）。
+   残りは科目週目標まで汎用で充填。 */
+function allocateV4(weekDates, caps, subjTargets, matTargets, mats, useSoft){
+  const EXT=25, SPLIT=20;
+  const perDay={}; weekDates.forEach(d=>perDay[d]={});   // key: subject|materialId -> {subject,materialId,min}
+  const dayRemain={}, dayExt={}, daySubj={};
+  weekDates.forEach(d=>{const c=caps[d]||{hard:0,soft:0}; dayRemain[d]=c.hard+(useSoft?c.soft:0); dayExt[d]=0; daySubj[d]={};});
+  const capOf=d=>{const c=caps[d]||{hard:0,soft:0};return c.hard+(useSoft?c.soft:0);};
+  const place=(d,subject,materialId,min)=>{const k=subject+'|'+(materialId||'');(perDay[d][k]||(perDay[d][k]={subject,materialId,min:0})).min+=min;daySubj[d][subject]=(daySubj[d][subject]||0)+min;};
+  const weekSubj=subject=>weekDates.reduce((s,d)=>s+Object.values(perDay[d]).filter(p=>p.subject===subject).reduce((a,p)=>a+p.min,0),0);
+  const shortfalls=[];
+
+  // 1) 教材ピースを作る
+  const blocks=[];
+  matTargets.forEach(t=>{const m=mats[t.materialId]; if(!m||m.archived) return; const mpu=m.minutesPerUnit||30, units=t.unitsPerWeek||0; if(units<=0) return;
+    if(m.splittable!==false){ let total=Math.round(units*mpu); while(total>0){const b=Math.min(SPLIT,total); blocks.push({subject:m.subjectName,materialId:m.id,min:b}); total-=b;} }
+    else { const n=Math.round(units); for(let i=0;i<n;i++) blocks.push({subject:m.subjectName,materialId:m.id,min:mpu}); }
+  });
+  blocks.sort((a,b)=>b.min-a.min); // 大きいものから
+  // 2) 配置：入る日→25分押し込み→あふれ
+  blocks.forEach(blk=>{
+    const order=[...weekDates].sort((x,y)=>dayRemain[y]-dayRemain[x]);
+    let done=false;
+    for(const d of order){ if(dayRemain[d]>=blk.min){ place(d,blk.subject,blk.materialId,blk.min); dayRemain[d]-=blk.min; done=true; break; } }
+    if(done) return;
+    for(const d of order){ if(capOf(d)<=0) continue; const overflow=blk.min-dayRemain[d];
+      if(overflow>0 && overflow<=EXT && dayExt[d]+overflow<=EXT){ place(d,blk.subject,blk.materialId,blk.min); dayExt[d]+=overflow; dayRemain[d]=0; done=true; break; } }
+    if(!done) shortfalls.push({type:'material',materialId:blk.materialId,subject:blk.subject,min:blk.min});
+  });
+
+  // 3) フロア（科目日次下限。教材で満たした分も算入）
+  subjTargets.filter(t=>t.floorMin>0||t.floorPct>0).forEach(t=>{
     weekDates.forEach(d=>{ if(dayRemain[d]<=0) return;
-      let amt=Math.max(t.floorMin||0, Math.floor(dayCap[d]*(t.floorPct||0)/100));
-      amt=Math.round(amt/5)*5; amt=Math.min(amt,dayRemain[d]);
-      if(amt>0){perDay[d][t.subject]=(perDay[d][t.subject]||0)+amt;dayRemain[d]-=amt;allocated[t.subject]+=amt;} });
+      let need=Math.max(t.floorMin||0, Math.floor(capOf(d)*(t.floorPct||0)/100)); need=Math.round(need/5)*5;
+      let add=need-(daySubj[d][t.subject]||0); if(add>0){ add=Math.min(add,dayRemain[d]); add=Math.floor(add/5)*5; if(add>0){ place(d,t.subject,null,add); dayRemain[d]-=add; } } });
   });
-  // 残キャパを5分刻みで「最も不足している科目」へ
-  weekDates.forEach(d=>{ let guard=0;
-    while(dayRemain[d]>=5 && guard++<2000){
-      let best=null,need=0; targets.forEach(t=>{const n=t.weeklyMin-allocated[t.subject]; if(n>need){need=n;best=t.subject;}});
-      if(!best) break;
-      perDay[d][best]=(perDay[d][best]||0)+5; allocated[best]+=5; dayRemain[d]-=5; }
+
+  // 4) 科目週目標まで汎用で充填（残キャパを最も不足の科目へ5分ずつ）
+  weekDates.forEach(d=>{ let g=0;
+    while(dayRemain[d]>=5 && g++<3000){ let best=null,need=0; subjTargets.forEach(t=>{const n=t.weeklyMin-weekSubj(t.subject); if(n>need){need=n;best=t.subject;}});
+      if(!best) break; place(d,best,null,5); dayRemain[d]-=5; }
   });
-  const shortfalls=targets.map(t=>({subject:t.subject,short:t.weeklyMin-allocated[t.subject]})).filter(x=>x.short>0);
+
+  // 集計・不足
+  const subjShort=subjTargets.map(t=>({subject:t.subject,short:Math.max(0,t.weeklyMin-weekSubj(t.subject))})).filter(x=>x.short>0);
+  const matShortMap={}; shortfalls.filter(s=>s.type==='material').forEach(s=>matShortMap[s.materialId]=(matShortMap[s.materialId]||0)+s.min);
+  const matShort=Object.entries(matShortMap).map(([id,min])=>({materialId:id,min,units:Math.round(min/(mats[id]?.minutesPerUnit||30)*10)/10}));
+  const extensions=weekDates.filter(d=>dayExt[d]>0).map(d=>({date:d,min:dayExt[d]}));
   const surplus=weekDates.reduce((a,d)=>a+dayRemain[d],0);
-  return {perDay,allocated,shortfalls,surplus};
+  // perDay を配列に整形
+  const out={}; weekDates.forEach(d=>{out[d]=Object.values(perDay[d]).filter(p=>p.min>0);});
+  return {perDay:out, subjShort, matShort, extensions, surplus};
 }
 
 function renderAlloc(){
@@ -786,12 +879,18 @@ $('#doPreview').onclick=()=>{
   const caps=weekCaps(weekDates);
   const totalCap=weekDates.reduce((a,d)=>a+caps[d].hard+(CATCHUP?caps[d].soft:0),0);
   if(totalCap<=0){toast('各日にテンプレートを割り当ててください');return;}
-  const res=allocateWeek(weekDates,caps,TARGETS,CATCHUP);
+  const res=allocateV4(weekDates,caps,TARGETS,MATTARGETS,matsById(),CATCHUP);
   let h=`<h2>配分プレビュー</h2>`;
-  weekDates.forEach(d=>{const m=res.perDay[d],keys=Object.keys(m).filter(k=>m[k]>0);if(!keys.length)return;const dd=parseD(d);
-    h+=`<div class="pvday">${dd.getMonth()+1}/${dd.getDate()}（${wkOf(d)}）</div>`;
-    keys.sort((x,y)=>m[y]-m[x]).forEach(k=>h+=`<div class="pvrow"><span class="pd" style="background:${colorOf(k)}"></span><span class="pn">${esc(k)}</span><span class="pv num">${fmtDur(m[k])}</span></div>`);});
-  if(res.shortfalls.length) h+=`<div class="pvwarn">⚠ 週の目標に届かない科目：<br>`+res.shortfalls.map(s=>`${esc(s.subject)} あと${fmtDur(s.short)}`).join(' ／ ')+`<br>`+(CATCHUP?'ソフト枠を含めても不足。テンプレートの追加か目標の見直しを。':'キャッチアップをONにするとソフト枠を使って解消できる場合があります。')+`</div>`;
+  weekDates.forEach(d=>{const items=res.perDay[d];if(!items.length)return;const dd=parseD(d);
+    const ext=res.extensions.find(e=>e.date===d);
+    h+=`<div class="pvday">${dd.getMonth()+1}/${dd.getDate()}（${wkOf(d)}）${ext?` <span style="color:var(--warn)">延長+${ext.min}分</span>`:''}</div>`;
+    items.sort((x,y)=>y.min-x.min).forEach(p=>{const nm=p.materialId?materialName(p.materialId):p.subject;
+      const u=p.materialId?` <span style="color:var(--faint)">約${Math.round(p.min/mpuOf(p.materialId)*10)/10}${unitLabelOf(p.materialId)}</span>`:'';
+      h+=`<div class="pvrow"><span class="pd" style="background:${colorOf(p.subject)}"></span><span class="pn">${esc(nm)}${u}</span><span class="pv num">${fmtDur(p.min)}</span></div>`;});});
+  const probs=[];
+  if(res.matShort.length) probs.push('教材が入り切りません：'+res.matShort.map(s=>`${esc(materialName(s.materialId))} あと${s.units}${unitLabelOf(s.materialId)}`).join(' ／ '));
+  if(res.subjShort.length) probs.push('科目の週目標に未達：'+res.subjShort.map(s=>`${esc(s.subject)} あと${fmtDur(s.short)}`).join(' ／ '));
+  if(probs.length) h+=`<div class="pvwarn">⚠ ${probs.join('<br>')}<br>${CATCHUP?'ソフト枠を含めても不足。テンプレ追加か目標見直しを。':'キャッチアップONでソフト枠を使うと解消する場合があります。'}</div>`;
   else h+=`<div class="pvok">✓ 週の目標をすべて満たせます${res.surplus?`（余剰 ${fmtDur(res.surplus)}）`:''}。</div>`;
   h+=`<div class="actions"><button class="btn ghost" id="pvCancel">閉じる</button><button class="btn primary" id="pvApply">確定して予定に反映</button></div>`;
   sheet(h);
@@ -802,7 +901,11 @@ async function applyAllocation(weekDates,perDay){
   const rm=TASKS.filter(t=>t.origin==='auto'&&t.status!=='done'&&weekDates.includes(t.date));
   for(const t of rm)await delV('tasks',t.id);
   TASKS=TASKS.filter(t=>!(t.origin==='auto'&&t.status!=='done'&&weekDates.includes(t.date)));
-  for(const d of weekDates){const m=perDay[d];for(const sub in m){if(m[sub]>0){const rec={id:uid(),title:sub+'（配分）',subject:sub,materialId:null,date:d,time:'',plannedMin:m[sub],status:'todo',carryCount:0,origin:'auto',createdTs:Date.now()};await putV('tasks',rec);TASKS.push(rec);}}}
+  for(const d of weekDates){for(const p of (perDay[d]||[])){ if(p.min<=0) continue;
+    const title=p.materialId?materialName(p.materialId):p.subject+'（配分）';
+    const planUnits=p.materialId?Math.round(p.min/mpuOf(p.materialId)*100)/100:0;
+    const rec={id:uid(),title,subject:p.subject,materialId:p.materialId||null,planUnits,date:d,time:'',plannedMin:p.min,status:'todo',carryCount:0,origin:'auto',createdTs:Date.now()};
+    await putV('tasks',rec);TASKS.push(rec);}}
 }
 
 /* テンプレート管理 */
@@ -836,18 +939,81 @@ function editTemplate(idx){
 
 /* 目標・フロア管理 */
 function openTargets(){
-  const rows=SUBJECTS.map(s=>{const t=TARGETS.find(x=>x.subject===s.name)||{weeklyMin:0,floorMin:0,floorPct:0};
+  const subjRows=SUBJECTS.map(s=>{const t=TARGETS.find(x=>x.subject===s.name)||{weeklyMin:0,floorMin:0,floorPct:0};
     return `<div class="tgrow" data-sub="${esc(s.name)}"><div class="tgn"><span class="cdot" style="background:${s.color}"></span>${esc(s.name)}</div>
       <label>週目標(時間)<input class="tw" type="number" inputmode="decimal" step="0.5" value="${(Math.round(t.weeklyMin/60*10)/10)||0}"></label>
       <label>毎日の下限(分)<input class="tf" type="number" inputmode="numeric" value="${t.floorMin||0}"></label>
       <label>下限(キャパ%)<input class="tp" type="number" inputmode="numeric" value="${t.floorPct||0}"></label></div>`;}).join('');
-  sheet(`<h2>目標・フロア設定</h2>${rows}<div class="actions"><button class="btn primary" id="tgSave">保存</button></div>
-    <div class="hint" style="margin-top:10px">「週目標」は週合計。「毎日の下限」を入れた科目は毎日 max(下限分, キャパ×%) を最優先で確保（英語など毎日一定にしたい科目向け）。合計は週キャパ(≈23h)以内に。</div>`);
+  const activeMats=MATERIALS.filter(m=>!m.archived);
+  const matRows=MATTARGETS.length?MATTARGETS.map(mt=>{const m=matById(mt.materialId);if(!m)return'';return `<div class="mtrow" data-mid="${m.id}"><span class="cdot" style="background:${colorOf(m.subjectName)}"></span><span class="mtn">${esc(m.subjectName)} / ${esc(m.name)}</span><input class="mtu" type="number" inputmode="decimal" step="0.5" value="${mt.unitsPerWeek||0}"><span class="mtul">${esc(m.unitLabel||'単位')}/週</span><button class="mtdel" type="button">×</button></div>`;}).join(''):'<div class="hint">教材別ターゲットは未設定です。下で追加できます。</div>';
+  const matOpts=activeMats.map(m=>`<option value="${m.id}">${esc(m.subjectName)} / ${esc(m.name)}</option>`).join('');
+  sheet(`<h2>目標・フロア設定</h2>
+    <div style="font-size:12px;color:var(--muted);margin:2px 0 6px">科目（週の総量）</div>${subjRows}
+    <div style="font-size:12px;color:var(--muted);margin:16px 0 6px">教材別（量で指定・科目の総量の内訳）</div>
+    <div id="mtList">${matRows}</div>
+    <div class="mtadd"><select id="mtSel">${matOpts||'<option value="">（教材なし）</option>'}</select><input id="mtNum" type="number" inputmode="decimal" step="0.5" placeholder="量"><button class="btn ghost" id="mtAdd" style="padding:9px 12px">追加</button></div>
+    <div style="margin-top:10px"><button class="btn ghost" id="mtJson" style="width:100%;font-size:13px">週次プランをJSONで取り込む</button></div>
+    <div class="actions"><button class="btn primary" id="tgSave">保存</button></div>
+    <div class="hint" style="margin-top:10px">「教材別」は量（例：公式問題集 2セット/週）で指定。内部で分に換算し、科目の週目標の内訳として優先配置します。合計は週キャパ(≈23h)以内に。</div>`, e=>{
+    const del=e.target.closest('.mtdel'); if(del){del.closest('.mtrow').remove();}});
+  $('#mtAdd').onclick=()=>{const id=$('#mtSel').value,num=parseFloat($('#mtNum').value)||0;if(!id||num<=0){toast('教材と量を入力');return;}const m=matById(id);
+    if($('#mtList').querySelector(`[data-mid="${id}"]`)){toast('その教材は既に追加済みです');return;}
+    const empty=$('#mtList').querySelector('.hint'); if(empty)empty.remove();
+    const div=document.createElement('div');div.innerHTML=`<div class="mtrow" data-mid="${id}"><span class="cdot" style="background:${colorOf(m.subjectName)}"></span><span class="mtn">${esc(m.subjectName)} / ${esc(m.name)}</span><input class="mtu" type="number" inputmode="decimal" step="0.5" value="${num}"><span class="mtul">${esc(m.unitLabel||'単位')}/週</span><button class="mtdel" type="button">×</button></div>`;
+    $('#mtList').appendChild(div.firstElementChild);$('#mtNum').value='';};
+  $('#mtJson').onclick=()=>openJsonImport();
   $('#tgSave').onclick=async()=>{
     TARGETS=[...$('#sheet').querySelectorAll('.tgrow')].map(r=>({subject:r.dataset.sub,weeklyMin:Math.round((parseFloat(r.querySelector('.tw').value)||0)*60),floorMin:parseInt(r.querySelector('.tf').value)||0,floorPct:parseInt(r.querySelector('.tp').value)||0}));
-    await setS('targets',TARGETS);closeSheet();
+    MATTARGETS=[...$('#sheet').querySelectorAll('.mtrow')].map(r=>({materialId:r.dataset.mid,unitsPerWeek:parseFloat(r.querySelector('.mtu').value)||0})).filter(x=>x.unitsPerWeek>0);
+    await setS('targets',TARGETS);await setS('mattargets',MATTARGETS);closeSheet();
     const sum=TARGETS.reduce((a,t)=>a+t.weeklyMin,0);
-    toast(sum>23*60?`保存（注意：週目標計 ${fmtDur(sum)} が23h超）`:'保存しました');
+    toast(sum>23*60?`保存（注意：科目週目標計 ${fmtDur(sum)} が23h超）`:'保存しました');
+  };
+}
+/* 週次プランのJSON取り込み（手入力欄も兼ねる）
+   形式例： {"materials":[{"subject":"TOEFL","name":"公式問題集","units":2}, ...]} */
+function openJsonImport(){
+  const sample=`{\n  "materials": [\n    {"subject":"TOEFL","name":"公式問題集","units":2},\n    {"subject":"専門科目","name":"神取ミクロ","units":1}\n  ]\n}`;
+  sheet(`<h2>週次プランを取り込む</h2>
+    <div class="hint" style="margin-bottom:8px">このチャットで決めた週次プランのJSONを貼り付け（または直接入力）してください。存在しない教材は科目に自動作成します（既定：1単位30分・分割可）。取り込み後は「目標・フロア」で微調整できます。</div>
+    <div class="field"><textarea id="jsonBox" style="width:100%;height:180px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px;font-size:13px;font-family:inherit" placeholder='${sample.replace(/"/g,'&quot;')}'></textarea></div>
+    <div class="actions"><button class="btn ghost" id="jBack">戻る</button><button class="btn primary" id="jApply">取り込む</button></div>`);
+  $('#jBack').onclick=openTargets;
+  $('#jApply').onclick=async()=>{
+    let data; try{data=JSON.parse($('#jsonBox').value);}catch(e){toast('JSONの形式が不正です');return;}
+    const list=(data&&data.materials)||[]; if(!list.length){toast('materials が空です');return;}
+    let added=0;
+    for(const it of list){ if(!it.subject||!it.name||!(it.units>0)) continue;
+      let subObj=SUBJECTS.find(s=>s.name===it.subject);
+      if(!subObj){subObj={name:it.subject,color:PALETTE[SUBJECTS.length%PALETTE.length]};SUBJECTS.push(subObj);await setS('subjects',SUBJECTS);}
+      let m=MATERIALS.find(x=>x.subjectName===it.subject&&x.name===it.name&&!x.archived);
+      if(!m){const id=await addMaterial(it.subject,it.name);m=matById(id); if(it.minutesPerUnit){m.minutesPerUnit=it.minutesPerUnit;} if(it.unitLabel){m.unitLabel=it.unitLabel;} if(typeof it.splittable==='boolean'){m.splittable=it.splittable;} await putV('materials',m);}
+      const ex=MATTARGETS.find(x=>x.materialId===m.id); if(ex)ex.unitsPerWeek=it.units; else MATTARGETS.push({materialId:m.id,unitsPerWeek:it.units});
+      added++;
+    }
+    await setS('mattargets',MATTARGETS);
+    toast(`${added}件を取り込みました`); openTargets();
+  };
+}
+
+/* ================= 自動更新 ================= */
+const APP_VERSION='v4';
+async function checkUpdate(){
+  try{
+    const r=await fetch('./version.json?ts='+Date.now(),{cache:'no-store'});
+    if(!r.ok) return; const j=await r.json();
+    if(j&&j.version&&j.version!==APP_VERSION) showUpdateBar(j.version);
+  }catch(e){/* オフライン等は無視 */}
+}
+function showUpdateBar(v){
+  if($('#updbar')) return;
+  const bar=document.createElement('div'); bar.id='updbar'; bar.className='updbar';
+  bar.innerHTML=`新しい版（${v}）があります <button id="updNow">更新</button>`;
+  document.body.appendChild(bar);
+  $('#updNow').onclick=async()=>{
+    try{ if('serviceWorker' in navigator){const regs=await navigator.serviceWorker.getRegistrations();for(const rg of regs)await rg.unregister();}
+      if(window.caches){const ks=await caches.keys();for(const k of ks)await caches.delete(k);} }catch(e){}
+    location.reload();
   };
 }
 
@@ -858,6 +1024,7 @@ async function init(){
   if(running)startTick();
   switchTab('plan');
   if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  checkUpdate();
 }
 init().catch(err=>{document.body.innerHTML='<p style="padding:24px;color:#e8ede9">起動に失敗しました。ページを再読み込みしてください。<br><small>'+err+'</small></p>';});
 </script>

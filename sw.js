@@ -2,13 +2,14 @@
    アプリ本体（HTML・アイコン・マニフェスト）をキャッシュし、
    ネットワークが無くても起動できるようにする。
    将来アプリを更新したら CACHE の版数字を1つ増やすと更新が反映される。 */
-const CACHE = 'gakushu-v1';
+const CACHE = 'gakushu-v4';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './version.json'
 ];
 
 self.addEventListener('install', (e) => {
@@ -27,6 +28,11 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // version.json は更新検知に使うため常にネットワーク優先（キャッシュしない）
+  if (e.request.url.indexOf('version.json') !== -1) {
+    e.respondWith(fetch(e.request).catch(() => caches.match('./version.json')));
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then((hit) => {
       if (hit) return hit;
