@@ -1,0 +1,17 @@
+{
+  "name": "学習ログ — 計器盤",
+  "short_name": "学習ログ",
+  "description": "予定・作業記録・繰越・分析を1つにまとめた学習管理アプリ。データは端末内に保存されます。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14201f",
+  "theme_color": "#14201f",
+  "lang": "ja",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
