@@ -2,7 +2,7 @@
    アプリ本体（HTML・アイコン・マニフェスト）をキャッシュし、
    ネットワークが無くても起動できるようにする。
    将来アプリを更新したら CACHE の版数字を1つ増やすと更新が反映される。 */
-const CACHE = 'gakushu-v5';
+const CACHE = 'gakushu-v6';
 const ASSETS = [
   './',
   './index.html',

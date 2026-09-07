@@ -432,7 +432,7 @@ const materialName=id=>{const m=MATERIALS.find(x=>x.id===id);return m?m.name:'�
 const matById=id=>MATERIALS.find(m=>m.id===id);
 const mpuOf=id=>{const m=matById(id);return (m&&m.minutesPerUnit)||30;};
 const unitLabelOf=id=>{const m=matById(id);return (m&&m.unitLabel)||'単位';};
-function addMaterial(sub,name){const m={id:uid(),name,subjectName:sub,archived:false,unitLabel:'単位',minutesPerUnit:30,splittable:true,obs:[],icon:null,createdTs:Date.now()};MATERIALS.push(m);return putV('materials',m).then(()=>m.id);}
+function addMaterial(sub,name){const m={id:uid(),name,subjectName:sub,archived:false,unitLabel:'単位',minutesPerUnit:30,splittable:true,capMin:0,obs:[],icon:null,createdTs:Date.now()};MATERIALS.push(m);return putV('materials',m).then(()=>m.id);}
 const ICON_PRESETS=['📕','📘','📗','📙','📓','📖','✏️','🖊️','📝','🎧','🗣️','🔤','🧮','📐','🌐','✈️','💹','📊','🧠','⏱️','🔬','💬'];
 function matIconHTML(m,size){
   const cls='micon '+(size||'m');
@@ -832,7 +832,7 @@ function openMaterials(sub){
 function editMaterial(id,sub){
   const m=matById(id); if(!m){openMaterials(sub);return;}
   const nObs=(m.obs||[]).length;
-  const collect=()=>{ if($('#emName')){m.name=$('#emName').value.trim()||m.name;m.unitLabel=$('#emUnit').value.trim()||'単位';m.minutesPerUnit=Math.max(5,parseInt($('#emMpu').value)||30);m.splittable=$('#emSplit').checked;} };
+  const collect=()=>{ if($('#emName')){m.name=$('#emName').value.trim()||m.name;m.unitLabel=$('#emUnit').value.trim()||'単位';m.minutesPerUnit=Math.max(5,parseInt($('#emMpu').value)||30);m.splittable=$('#emSplit').checked;m.capMin=Math.max(0,parseInt($('#emCap').value)||0);} };
   const save=async()=>{collect();await putV('materials',m);openMaterials(sub);};
   formModal('教材の設定',`
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
@@ -848,6 +848,7 @@ function editMaterial(id,sub){
       <div><label>1単位=何分</label><input id="emMpu" type="number" inputmode="numeric" value="${m.minutesPerUnit||30}"></div>
     </div></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="emSplit"${m.splittable!==false?' checked':''}>分割を許可する（日をまたいで細切れOK。オフだと1単位はまとめて配置）</label></div>
+    <div class="field"><label>1日の上限（分・任意。0で無制限）</label><input id="emCap" type="number" inputmode="numeric" value="${m.capMin||0}"><div class="hint" style="margin-top:4px">上限を設けると、その教材は毎日その分数まででほぼ均等に配分されます（例：Looraを30にすると1日30分まで）。分割可の教材にのみ有効。</div></div>
     <div class="hint">実測データ：${nObs}件${nObs>=5?'（5件ごとに1単位=分の補正を提案）':'（5件たまると補正提案）'}</div>`,
     {saveLabel:'保存',onSave:save,onClose:()=>openMaterials(sub)});
   const refreshIcon=()=>{$('#emIconPrev').innerHTML=matIconHTML(m,'xl');};
@@ -929,21 +930,32 @@ function weekCaps(weekDates){const caps={};weekDates.forEach(d=>{const t=ASSIGN[
 function allocateV4(weekDates, caps, subjTargets, matTargets, mats, useSoft){
   const EXT=25, SPLIT=20;
   const perDay={}; weekDates.forEach(d=>perDay[d]={});   // key: subject|materialId -> {subject,materialId,min}
-  const dayRemain={}, dayExt={}, daySubj={};
-  weekDates.forEach(d=>{const c=caps[d]||{hard:0,soft:0}; dayRemain[d]=c.hard+(useSoft?c.soft:0); dayExt[d]=0; daySubj[d]={};});
+  const dayRemain={}, dayExt={}, daySubj={}, dayMatMap={};
+  weekDates.forEach(d=>{const c=caps[d]||{hard:0,soft:0}; dayRemain[d]=c.hard+(useSoft?c.soft:0); dayExt[d]=0; daySubj[d]={}; dayMatMap[d]={};});
   const capOf=d=>{const c=caps[d]||{hard:0,soft:0};return c.hard+(useSoft?c.soft:0);};
-  const place=(d,subject,materialId,min)=>{const k=subject+'|'+(materialId||'');(perDay[d][k]||(perDay[d][k]={subject,materialId,min:0})).min+=min;daySubj[d][subject]=(daySubj[d][subject]||0)+min;};
+  const place=(d,subject,materialId,min)=>{const k=subject+'|'+(materialId||'');(perDay[d][k]||(perDay[d][k]={subject,materialId,min:0})).min+=min;daySubj[d][subject]=(daySubj[d][subject]||0)+min; if(materialId)dayMatMap[d][materialId]=(dayMatMap[d][materialId]||0)+min;};
+  const dayMat=(d,id)=>dayMatMap[d][id]||0;
   const weekSubj=subject=>weekDates.reduce((s,d)=>s+Object.values(perDay[d]).filter(p=>p.subject===subject).reduce((a,p)=>a+p.min,0),0);
   const shortfalls=[];
+  const subjWithMat=new Set(matTargets.filter(t=>{const m=mats[t.materialId];return m&&!m.archived&&(t.unitsPerWeek||0)>0;}).map(t=>mats[t.materialId].subjectName));
 
-  // 1) 教材ピースを作る
+  // 1) キャップ付き教材（分割可）：1日の上限まで均等配分（最も使用の少ない日から5分ずつ）
+  matTargets.forEach(t=>{const m=mats[t.materialId]; if(!m||m.archived) return; const cap=m.capMin||0; if(cap<=0||m.splittable===false) return;
+    let remaining=Math.round((t.unitsPerWeek||0)*(m.minutesPerUnit||30)); if(remaining<=0) return; let guard=0;
+    while(remaining>=5 && guard++<6000){ let best=null,bestUsed=Infinity,bestRem=-1;
+      for(const d of weekDates){ const room=Math.min(cap-dayMat(d,m.id), dayRemain[d]); if(room>=5){ const u=dayMat(d,m.id); if(u<bestUsed||(u===bestUsed&&dayRemain[d]>bestRem)){best=d;bestUsed=u;bestRem=dayRemain[d];} } }
+      if(!best) break; place(best,m.subjectName,m.id,5); dayRemain[best]-=5; remaining-=5; }
+    if(remaining>0) shortfalls.push({type:'material',materialId:m.id,subject:m.subjectName,min:remaining});
+  });
+
+  // 2) 教材ピースを作る（キャップ無しの教材）
   const blocks=[];
-  matTargets.forEach(t=>{const m=mats[t.materialId]; if(!m||m.archived) return; const mpu=m.minutesPerUnit||30, units=t.unitsPerWeek||0; if(units<=0) return;
+  matTargets.forEach(t=>{const m=mats[t.materialId]; if(!m||m.archived) return; if((m.capMin||0)>0 && m.splittable!==false) return; const mpu=m.minutesPerUnit||30, units=t.unitsPerWeek||0; if(units<=0) return;
     if(m.splittable!==false){ let total=Math.round(units*mpu); while(total>0){const b=Math.min(SPLIT,total); blocks.push({subject:m.subjectName,materialId:m.id,min:b}); total-=b;} }
     else { const n=Math.round(units); for(let i=0;i<n;i++) blocks.push({subject:m.subjectName,materialId:m.id,min:mpu}); }
   });
   blocks.sort((a,b)=>b.min-a.min); // 大きいものから
-  // 2) 配置：入る日→25分押し込み→あふれ
+  // 3) 配置：入る日→25分押し込み→あふれ
   blocks.forEach(blk=>{
     const order=[...weekDates].sort((x,y)=>dayRemain[y]-dayRemain[x]);
     let done=false;
@@ -954,16 +966,16 @@ function allocateV4(weekDates, caps, subjTargets, matTargets, mats, useSoft){
     if(!done) shortfalls.push({type:'material',materialId:blk.materialId,subject:blk.subject,min:blk.min});
   });
 
-  // 3) フロア（科目日次下限。教材で満たした分も算入）
+  // 4) フロア（科目日次下限。教材で満たした分も算入）
   subjTargets.filter(t=>t.floorMin>0||t.floorPct>0).forEach(t=>{
     weekDates.forEach(d=>{ if(dayRemain[d]<=0) return;
       let need=Math.max(t.floorMin||0, Math.floor(capOf(d)*(t.floorPct||0)/100)); need=Math.round(need/5)*5;
       let add=need-(daySubj[d][t.subject]||0); if(add>0){ add=Math.min(add,dayRemain[d]); add=Math.floor(add/5)*5; if(add>0){ place(d,t.subject,null,add); dayRemain[d]-=add; } } });
   });
 
-  // 4) 科目週目標まで汎用で充填（残キャパを最も不足の科目へ5分ずつ）
+  // 5) 科目週目標まで汎用で充填（※教材別ターゲットのある科目は汎用充填しない＝案A）
   weekDates.forEach(d=>{ let g=0;
-    while(dayRemain[d]>=5 && g++<3000){ let best=null,need=0; subjTargets.forEach(t=>{const n=t.weeklyMin-weekSubj(t.subject); if(n>need){need=n;best=t.subject;}});
+    while(dayRemain[d]>=5 && g++<3000){ let best=null,need=0; subjTargets.forEach(t=>{ if(subjWithMat.has(t.subject)) return; const n=t.weeklyMin-weekSubj(t.subject); if(n>need){need=n;best=t.subject;}});
       if(!best) break; place(d,best,null,5); dayRemain[d]-=5; }
   });
 
@@ -1111,7 +1123,7 @@ function openJsonImport(){
       let subObj=SUBJECTS.find(s=>s.name===it.subject);
       if(!subObj){subObj={name:it.subject,color:PALETTE[SUBJECTS.length%PALETTE.length]};SUBJECTS.push(subObj);await setS('subjects',SUBJECTS);}
       let m=MATERIALS.find(x=>x.subjectName===it.subject&&x.name===it.name&&!x.archived);
-      if(!m){const id=await addMaterial(it.subject,it.name);m=matById(id); if(it.minutesPerUnit){m.minutesPerUnit=it.minutesPerUnit;} if(it.unitLabel){m.unitLabel=it.unitLabel;} if(typeof it.splittable==='boolean'){m.splittable=it.splittable;} await putV('materials',m);}
+      if(!m){const id=await addMaterial(it.subject,it.name);m=matById(id); if(it.minutesPerUnit){m.minutesPerUnit=it.minutesPerUnit;} if(it.unitLabel){m.unitLabel=it.unitLabel;} if(typeof it.splittable==='boolean'){m.splittable=it.splittable;} if(it.capMin){m.capMin=it.capMin;} await putV('materials',m);}
       const ex=MATTARGETS.find(x=>x.materialId===m.id); if(ex)ex.unitsPerWeek=it.units; else MATTARGETS.push({materialId:m.id,unitsPerWeek:it.units});
       added++;
     }
@@ -1121,7 +1133,7 @@ function openJsonImport(){
 }
 
 /* ================= 自動更新 ================= */
-const APP_VERSION='v5';
+const APP_VERSION='v6';
 async function checkUpdate(){
   try{
     const r=await fetch('./version.json?ts='+Date.now(),{cache:'no-store'});
