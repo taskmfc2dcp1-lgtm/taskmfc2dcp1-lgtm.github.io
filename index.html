@@ -710,29 +710,40 @@ function renderFeed(){
 }
 $('#feedList').addEventListener('click',e=>{const r=e.target.closest('[data-sid]');if(r)openSessionEdit(r.dataset.sid);});
 $('#addManual').onclick=()=>openSessionEdit(null);
+function taskOptions(dateStr, selId){
+  const list=TASKS.filter(t=>t.date===dateStr && t.status!=='done');
+  let h=`<option value="">（予定なし）</option>`;
+  list.forEach(t=>{const mn=t.materialId?materialName(t.materialId):t.subject; h+=`<option value="${t.id}"${t.id===selId?' selected':''}>${esc(t.title)}｜${esc(mn)}</option>`;});
+  if(selId && !list.some(t=>t.id===selId)){const t=TASKS.find(x=>x.id===selId); if(t)h+=`<option value="${t.id}" selected>${esc(t.title)}（別日/完了）</option>`;}
+  return h;
+}
 function openSessionEdit(sid){
   const s=sid?SESSIONS.find(x=>x.id===sid):null;
-  let sub=s?s.subject:(SUBJECTS[0].name), matId=s?s.materialId:null;
+  let sub=s?s.subject:(SUBJECTS[0].name), matId=s?s.materialId:null, taskId=s?(s.taskId||null):null;
   const date=s?dstr(new Date(s.startTs)):today();
-  const subChips=SUBJECTS.map(x=>`<button type="button" class="chip${sub===x.name?' on':''}" data-sub="${esc(x.name)}"><span class="cdot" style="background:${x.color}"></span>${esc(x.name)}</button>`).join('');
+  const subChipsHTML=()=>SUBJECTS.map(x=>`<button type="button" class="chip${sub===x.name?' on':''}" data-sub="${esc(x.name)}"><span class="cdot" style="background:${x.color}"></span>${esc(x.name)}</button>`).join('');
   const save=async()=>{const min=parseInt($('#rMin').value)||0;if(min<1){toast('時間（分）を入力してください');return;}
     const dsel=$('#rDate').value||today();
     if(s){const base=parseD(dsel); if(!s.manual){const o=new Date(s.startTs);base.setHours(o.getHours(),o.getMinutes(),0,0);}else base.setHours(12,0,0,0);
-      s.subject=sub;s.color=colorOf(sub);s.materialId=matId;s.min=min;s.startTs=base.getTime();s.endTs=base.getTime()+min*60000;await putV('sessions',s);}
-    else{const base=parseD(dsel);base.setHours(12,0,0,0);const ns={id:uid(),taskId:null,subject:sub,color:colorOf(sub),materialId:matId,startTs:base.getTime(),endTs:base.getTime()+min*60000,min,manual:true};await putV('sessions',ns);SESSIONS.push(ns);}
-    closeSheet();renderFeed();toast(s?'保存しました':'追加しました');};
+      s.subject=sub;s.color=colorOf(sub);s.materialId=matId;s.taskId=taskId;s.min=min;s.startTs=base.getTime();s.endTs=base.getTime()+min*60000;await putV('sessions',s);}
+    else{const base=parseD(dsel);base.setHours(12,0,0,0);const ns={id:uid(),taskId:taskId,subject:sub,color:colorOf(sub),materialId:matId,startTs:base.getTime(),endTs:base.getTime()+min*60000,min,manual:true};await putV('sessions',ns);SESSIONS.push(ns); if(taskId) await recordMpuObservation(ns);}
+    closeSheet();renderFeed();renderPlan();toast(s?'保存しました':'追加しました');};
   formModal(s?'記録を編集':'手動で記録を追加',`
-    <div class="field"><label>科目</label><div class="chips" id="rSub">${subChips}</div></div>
+    <div class="field"><label>科目</label><div class="chips" id="rSub">${subChipsHTML()}</div></div>
     <div class="field"><label>教材（任意）</label><div class="chips" id="rMat">${matChips(sub,matId)}</div></div>
     <div class="field"><div class="row"><div><label>日付</label><input type="date" id="rDate" value="${date}"></div><div><label>時間（分）</label><input type="number" inputmode="numeric" id="rMin" placeholder="例）45" value="${s?s.min:''}"></div></div></div>
+    <div class="field"><label>予定に紐づける（任意｜選んだ日付の未完了予定）</label><select id="rTask">${taskOptions(date,taskId)}</select><div class="hint" style="margin-top:4px">予定を選ぶと科目・教材が自動入力され、その予定の実績・実測補正に反映されます。</div></div>
     ${s&&!s.manual?'<div class="hint">これはタイマーで計測した記録です。時間を編集すると内容が上書きされます。</div>':''}
     ${s?'<button class="btn ghost" id="rDelete" style="width:100%;margin-top:8px">この記録を削除</button>':''}`,
     {saveLabel:s?'保存':'追加',onSave:save});
   const reMat=()=>{$('#rMat').innerHTML=matChips(sub,matId);};
-  $('#rSub').addEventListener('click',e=>{const b=e.target.closest('[data-sub]');if(!b)return;sub=b.dataset.sub;matId=null;$('#rSub').querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c===b));reMat();});
+  const reSub=()=>{$('#rSub').innerHTML=subChipsHTML();};
+  $('#rSub').addEventListener('click',e=>{const b=e.target.closest('[data-sub]');if(!b)return;sub=b.dataset.sub;matId=null;taskId=null;$('#rTask').value='';reSub();reMat();});
   $('#rMat').addEventListener('click',async e=>{const b=e.target.closest('[data-mat]');if(!b)return;const v=b.dataset.mat;
     if(v==='__add'){const n=prompt('教材名を入力');if(n&&n.trim()){matId=await addMaterial(sub,n.trim());reMat();}return;}
     matId=v||null;$('#rMat').querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c===b));});
+  $('#rDate').onchange=()=>{taskId=null;$('#rTask').innerHTML=taskOptions($('#rDate').value||today(),null);};
+  $('#rTask').onchange=()=>{taskId=$('#rTask').value||null; if(taskId){const t=TASKS.find(x=>x.id===taskId); if(t){sub=t.subject;matId=t.materialId||null;reSub();reMat();}}};
   if(s)$('#rDelete').onclick=async()=>{if(!confirm('この記録を削除しますか？'))return;await delV('sessions',s.id);SESSIONS=SESSIONS.filter(x=>x.id!==s.id);closeSheet();renderFeed();toast('削除しました');};
 }
 
@@ -1133,7 +1144,7 @@ function openJsonImport(){
 }
 
 /* ================= 自動更新 ================= */
-const APP_VERSION='v6';
+const APP_VERSION='v7';
 async function checkUpdate(){
   try{
     const r=await fetch('./version.json?ts='+Date.now(),{cache:'no-store'});
