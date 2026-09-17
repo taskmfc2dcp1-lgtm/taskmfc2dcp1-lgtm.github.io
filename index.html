@@ -558,8 +558,8 @@ $('#planBody').addEventListener('click',e=>{
   const task=e.target.closest('.task'); if(task) openTaskSheet(task.dataset.id);
 });
 async function toggleDone(id){const t=TASKS.find(x=>x.id===id);if(!t)return;t.status=t.status==='done'?'todo':'done';await putV('tasks',t);renderPlan();}
-$('#carryOverdue').onclick=async()=>{const td=today();const g=TASKS.filter(t=>t.status!=='done'&&t.date<td);if(!g.length){toast('期限切れの未完了はありません');return;}if(!confirm(`${g.length}件を今日へ繰り越しますか？`))return;for(const t of g){t.date=td;t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);};
-$('#carryNextWeek').onclick=async()=>{const ws=dstr(weekStart),we=addDays(ws,6);const g=TASKS.filter(t=>t.status!=='done'&&t.date>=ws&&t.date<=we);if(!g.length){toast('今週の未完了はありません');return;}if(!confirm(`${g.length}件を来週へ繰り越しますか？`))return;for(const t of g){t.date=addDays(t.date,7);t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);};
+$('#carryOverdue').onclick=async()=>{const td=today();const g=TASKS.filter(t=>t.status!=='done'&&t.date<td);if(!g.length){toast('期限切れの未完了はありません');return;}if(!confirm(`${g.length}件を今日へ繰り越しますか？`))return;for(const t of g){t.date=td;t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);offerReallocation(dstr(mondayOf(new Date())));};
+$('#carryNextWeek').onclick=async()=>{const ws=dstr(weekStart),we=addDays(ws,6);const g=TASKS.filter(t=>t.status!=='done'&&t.date>=ws&&t.date<=we);if(!g.length){toast('今週の未完了はありません');return;}if(!confirm(`${g.length}件を来週へ繰り越しますか？`))return;for(const t of g){t.date=addDays(t.date,7);t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);offerReallocation(addDays(ws,7));};
 
 /* ================= 予定の追加・編集 ================= */
 function todayRemainHTML(){
@@ -602,14 +602,16 @@ function openTaskSheet(id){
     <div class="hint" style="margin-bottom:6px">${esc(t.subject)}${t.materialId?' / '+esc(materialName(t.materialId)):''}${t.time?' · '+t.time:''}${t.plannedMin?' · 予定 '+fmtDur(t.plannedMin):''}${a?' · 実績 '+fmtDur(a):''}</div>
     <div class="list-item" data-a="done"><span class="li-ic">${t.status==='done'?'↺':'✓'}</span>${t.status==='done'?'未完了に戻す':'完了にする'}</div>
     <div class="list-item" data-a="timer"><span class="li-ic">▶</span>この予定でタイマー開始</div>
+    <div class="list-item" data-a="rec"><span class="li-ic">✎</span>この予定の記録を追加（手入力）</div>
     <div class="list-item" data-a="c1"><span class="li-ic">→</span>翌日へ繰越</div>
     <div class="list-item" data-a="c7"><span class="li-ic">»</span>来週へ繰越</div>
-    <div class="list-item" data-a="edit"><span class="li-ic">✎</span>編集</div>
+    <div class="list-item" data-a="edit"><span class="li-ic">✏</span>編集</div>
     <div class="list-item danger" data-a="del"><span class="li-ic">🗑</span>削除</div>`, async e=>{
     const el=e.target.closest('[data-a]');if(!el)return;const act=el.dataset.a;
     if(act==='done'){await toggleDone(id);closeSheet();}
     if(act==='timer'){closeSheet();startTimer(t.subject,id,t.title,t.materialId);switchTab('timer');}
-    if(act==='c1'||act==='c7'){t.date=addDays(t.date,act==='c1'?1:7);t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);closeSheet();renderPlan();toast('繰り越しました');}
+    if(act==='rec'){closeSheet();openSessionEdit(null,{taskId:id});}
+    if(act==='c1'||act==='c7'){t.date=addDays(t.date,act==='c1'?1:7);t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);closeSheet();renderPlan();toast('繰り越しました');offerReallocation(dstr(mondayOf(parseD(t.date))));}
     if(act==='edit'){openTaskForm(null,t);}
     if(act==='del'){removeTask(id);}
   });
@@ -717,10 +719,12 @@ function taskOptions(dateStr, selId){
   if(selId && !list.some(t=>t.id===selId)){const t=TASKS.find(x=>x.id===selId); if(t)h+=`<option value="${t.id}" selected>${esc(t.title)}（別日/完了）</option>`;}
   return h;
 }
-function openSessionEdit(sid){
+function openSessionEdit(sid,prefill){
   const s=sid?SESSIONS.find(x=>x.id===sid):null;
-  let sub=s?s.subject:(SUBJECTS[0].name), matId=s?s.materialId:null, taskId=s?(s.taskId||null):null;
-  const date=s?dstr(new Date(s.startTs)):today();
+  let sub,matId,taskId,date;
+  if(s){ sub=s.subject; matId=s.materialId; taskId=s.taskId||null; date=dstr(new Date(s.startTs)); }
+  else if(prefill&&prefill.taskId){ const pt=TASKS.find(x=>x.id===prefill.taskId); sub=pt?pt.subject:SUBJECTS[0].name; matId=pt?(pt.materialId||null):null; taskId=prefill.taskId; date=pt?pt.date:today(); }
+  else { sub=SUBJECTS[0].name; matId=null; taskId=null; date=today(); }
   const subChipsHTML=()=>SUBJECTS.map(x=>`<button type="button" class="chip${sub===x.name?' on':''}" data-sub="${esc(x.name)}"><span class="cdot" style="background:${x.color}"></span>${esc(x.name)}</button>`).join('');
   const save=async()=>{const min=parseInt($('#rMin').value)||0;if(min<1){toast('時間（分）を入力してください');return;}
     const dsel=$('#rDate').value||today();
@@ -932,6 +936,10 @@ const t2m=hhmm=>{const[h,m]=hhmm.split(':').map(Number);return h*60+m;};
 function tmplCap(t){let hard=0,soft=0;(t.blocks||[]).forEach(b=>{const d=Math.max(0,t2m(b.e)-t2m(b.s));if(b.soft)soft+=d;else hard+=d;});return{hard,soft};}
 const tmplById=id=>TEMPLATES.find(t=>t.id===id);
 function weekCaps(weekDates){const caps={};weekDates.forEach(d=>{const t=ASSIGN[d]?tmplById(ASSIGN[d]):null;caps[d]=t?tmplCap(t):{hard:0,soft:0};});return caps;}
+// 既存予定（done・手動＝再生成対象でないもの）がその日に使う予定分
+function occupiedMin(dateStr){return TASKS.filter(t=>t.date===dateStr && !(t.origin==='auto'&&t.status!=='done')).reduce((a,t)=>a+(t.plannedMin||0),0);}
+// 残りキャパ（テンプレのキャパから既存予定分を差し引く）
+function residualCaps(weekDates){const base=weekCaps(weekDates);const out={};weekDates.forEach(d=>{const occ=occupiedMin(d);out[d]={hard:Math.max(0,base[d].hard-occ),soft:base[d].soft,baseHard:base[d].hard,occ};});return out;}
 
 /* 純粋関数：配分エンジンv4
    科目週目標=総量。教材ターゲット(量)を分に換算し具体ピースとして優先配置。
@@ -1021,12 +1029,23 @@ $('#mgTemplates').onclick=()=>openTemplates();
 $('#mgTargets').onclick=()=>openTargets();
 
 $('#doPreview').onclick=()=>{
-  const ws=dstr(allocWeekStart),weekDates=[];for(let i=0;i<7;i++)weekDates.push(addDays(ws,i));
-  const caps=weekCaps(weekDates);
-  const totalCap=weekDates.reduce((a,d)=>a+caps[d].hard+(CATCHUP?caps[d].soft:0),0);
-  if(totalCap<=0){toast('各日にテンプレートを割り当ててください');return;}
-  const res=allocateV4(weekDates,caps,TARGETS,MATTARGETS,matsById(),CATCHUP);
+  const ws=dstr(allocWeekStart);
+  const weekDates=[];for(let i=0;i<7;i++)weekDates.push(addDays(ws,i));
+  if(weekDates.every(d=>weekCaps([d])[d].hard===0)){toast('各日にテンプレートを割り当ててください');return;}
+  showAllocPreview(ws,{});
+};
+function currentMatTargets(reduce){ if(!reduce) return MATTARGETS; return MATTARGETS.map(t=> reduce[t.materialId]!=null?{...t,unitsPerWeek:reduce[t.materialId]}:t); }
+function showAllocPreview(wsStr, opts){
+  opts=opts||{}; const softOne=!!opts.softOne, reduce=opts.reduce||null;
+  const weekDates=[];for(let i=0;i<7;i++)weekDates.push(addDays(wsStr,i));
+  const useSoft=CATCHUP||softOne;
+  const caps=residualCaps(weekDates);
+  const capsForEngine={}; weekDates.forEach(d=>capsForEngine[d]={hard:caps[d].hard,soft:caps[d].soft});
+  const overloaded=weekDates.filter(d=>caps[d].occ>caps[d].baseHard);
+  const res=allocateV4(weekDates,capsForEngine,TARGETS,currentMatTargets(reduce),matsById(),useSoft);
   let h=`<h2>配分プレビュー</h2>`;
+  if(softOne) h+=`<div class="pvok">今週だけソフト枠を使用中。</div>`;
+  if(overloaded.length) h+=`<div class="pvwarn">⚠ 既存の予定だけで容量超過の日：`+overloaded.map(d=>{const dd=parseD(d);return `${dd.getMonth()+1}/${dd.getDate()}（+${caps[d].occ-caps[d].baseHard}分）`;}).join('・')+`<br>配分はこれらの日を避け、空き時間にのみ入れています。</div>`;
   weekDates.forEach(d=>{const items=res.perDay[d];if(!items.length)return;const dd=parseD(d);
     const ext=res.extensions.find(e=>e.date===d);
     h+=`<div class="pvday">${dd.getMonth()+1}/${dd.getDate()}（${wkOf(d)}）${ext?` <span style="color:var(--warn)">延長+${ext.min}分</span>`:''}</div>`;
@@ -1034,16 +1053,62 @@ $('#doPreview').onclick=()=>{
       const ic=p.materialId&&matById(p.materialId)?matIconHTML(matById(p.materialId),'s'):`<span class="pd" style="background:${colorOf(p.subject)}"></span>`;
       const u=p.materialId?` <span style="color:var(--faint)">約${Math.round(p.min/mpuOf(p.materialId)*10)/10}${unitLabelOf(p.materialId)}</span>`:'';
       h+=`<div class="pvrow">${ic}<span class="pn">${esc(nm)}${u}</span><span class="pv num">${fmtDur(p.min)}</span></div>`;});});
-  const probs=[];
-  if(res.matShort.length) probs.push('教材が入り切りません：'+res.matShort.map(s=>`${esc(materialName(s.materialId))} あと${s.units}${unitLabelOf(s.materialId)}`).join(' ／ '));
-  if(res.subjShort.length) probs.push('科目の週目標に未達：'+res.subjShort.map(s=>`${esc(s.subject)} あと${fmtDur(s.short)}`).join(' ／ '));
-  if(probs.length) h+=`<div class="pvwarn">⚠ ${probs.join('<br>')}<br>${CATCHUP?'ソフト枠を含めても不足。テンプレ追加か目標見直しを。':'キャッチアップONでソフト枠を使うと解消する場合があります。'}</div>`;
-  else h+=`<div class="pvok">✓ 週の目標をすべて満たせます${res.surplus?`（余剰 ${fmtDur(res.surplus)}）`:''}。</div>`;
+  const hasShort=res.matShort.length||res.subjShort.length;
+  if(hasShort){const probs=[];
+    if(res.matShort.length) probs.push('教材：'+res.matShort.map(s=>`${esc(materialName(s.materialId))} あと${s.units}${unitLabelOf(s.materialId)}`).join(' ／ '));
+    if(res.subjShort.length) probs.push('科目：'+res.subjShort.map(s=>`${esc(s.subject)} あと${fmtDur(s.short)}`).join(' ／ '));
+    h+=`<div class="pvwarn">⚠ 今週に入り切りません：<br>${probs.join('<br>')}</div>
+      <div class="iconopts" style="margin-top:6px">
+        ${!useSoft?'<button type="button" id="escSoft">今週だけソフト枠を使う</button>':''}
+        ${res.matShort.length?'<button type="button" id="escNext">入り切らない教材分を翌週へ送る</button>':''}
+        ${res.matShort.length?'<button type="button" id="escDrop">項目を選んで今週から外す</button>':''}
+      </div>`;
+  } else h+=`<div class="pvok">✓ 週の目標をすべて満たせます${res.surplus?`（余剰 ${fmtDur(res.surplus)}）`:''}。</div>`;
   h+=`<div class="actions"><button class="btn ghost" id="pvCancel">閉じる</button><button class="btn primary" id="pvApply">確定して予定に反映</button></div>`;
   sheet(h);
   $('#pvCancel').onclick=closeSheet;
   $('#pvApply').onclick=async()=>{await applyAllocation(weekDates,res.perDay);closeSheet();toast('予定に反映しました');switchTab('plan');};
-};
+  if(hasShort){
+    if($('#escSoft'))$('#escSoft').onclick=()=>showAllocPreview(wsStr,{softOne:true,reduce});
+    if($('#escNext'))$('#escNext').onclick=async()=>{const left=await sendShortfallToNextWeek(wsStr,res);await applyAllocation(weekDates,res.perDay);closeSheet();switchTab('plan');toast(left>0?`翌週へ送りました（さらに${fmtDur(left)}は来週も収まらず未配置）`:'今週分を確定し、残りを翌週へ送りました');};
+    if($('#escDrop'))$('#escDrop').onclick=()=>openDropPicker(wsStr,res,reduce);
+  }
+}
+function openDropPicker(wsStr,res,reduce){
+  const rows=res.matShort.map(s=>{const cur=(MATTARGETS.find(t=>t.materialId===s.materialId)||{}).unitsPerWeek||0; const fit=Math.max(0,Math.round((cur-s.units)*10)/10);
+    return `<label class="list-item"><input type="checkbox" data-mid="${s.materialId}" data-fit="${fit}" checked style="margin-right:10px">${esc(materialName(s.materialId))}：今週 ${cur}→${fit}${unitLabelOf(s.materialId)} に減らす</label>`;}).join('');
+  sheet(`<h2>今週から外す項目</h2><div class="hint" style="margin-bottom:8px">チェックした教材を、今週入る量まで減らします（元の週次目標は変えません／今回の配分のみ）。</div>${rows}
+    <div class="actions"><button class="btn ghost" id="dpBack">戻る</button><button class="btn primary" id="dpApply">この内容で再計算</button></div>`);
+  $('#dpBack').onclick=()=>showAllocPreview(wsStr,{reduce});
+  $('#dpApply').onclick=()=>{const r=Object.assign({},reduce||{});$('#sheet').querySelectorAll('input[data-mid]:checked').forEach(c=>{r[c.dataset.mid]=parseFloat(c.dataset.fit)||0;});showAllocPreview(wsStr,{reduce:r});};
+}
+async function sendShortfallToNextWeek(wsStr,res){
+  const nd=[];const nws=addDays(wsStr,7);for(let i=0;i<7;i++)nd.push(addDays(nws,i));
+  const caps=residualCaps(nd); const rem={}; nd.forEach(d=>rem[d]=caps[d].hard);
+  let blocks=[];
+  res.matShort.forEach(s=>{const m=matById(s.materialId);const split=m?m.splittable!==false:true;let total=s.min;
+    if(split){while(total>0){const b=Math.min(20,total);blocks.push({materialId:s.materialId,subject:s.subject,min:b});total-=b;}}
+    else{const mpu=mpuOf(s.materialId);const n=Math.max(1,Math.round(total/mpu));for(let i=0;i<n;i++)blocks.push({materialId:s.materialId,subject:s.subject,min:mpu});}});
+  blocks.sort((a,b)=>b.min-a.min);
+  const placed={}; nd.forEach(d=>placed[d]={}); let leftover=0;
+  blocks.forEach(blk=>{const order=[...nd].sort((x,y)=>rem[y]-rem[x]);let done=false;
+    for(const d of order){if(rem[d]>=blk.min){placed[d][blk.materialId]=(placed[d][blk.materialId]||0)+blk.min;rem[d]-=blk.min;done=true;break;}}
+    if(!done){for(const d of order){const ov=blk.min-rem[d];if(rem[d]>0&&ov>0&&ov<=25){placed[d][blk.materialId]=(placed[d][blk.materialId]||0)+blk.min;rem[d]=0;done=true;break;}}}
+    if(!done)leftover+=blk.min;});
+  for(const d of nd){for(const mid in placed[d]){const min=placed[d][mid];if(min<=0)continue;
+    const rec={id:uid(),title:materialName(mid)+'（繰越）',subject:matById(mid)?matById(mid).subjectName:'',materialId:mid,planUnits:Math.round(min/mpuOf(mid)*100)/100,date:d,time:'',plannedMin:min,status:'todo',carryCount:1,origin:'manual',createdTs:Date.now()};
+    await putV('tasks',rec);TASKS.push(rec);}}
+  return leftover;
+}
+// 繰越後：過密なら再配分を提案（プレビュー付き半自動）
+async function offerReallocation(wsStr){
+  const weekDates=[];for(let i=0;i<7;i++)weekDates.push(addDays(wsStr,i));
+  const hasAuto=TASKS.some(t=>t.origin==='auto'&&t.status!=='done'&&weekDates.includes(t.date));
+  const caps=residualCaps(weekDates);
+  const overloaded=weekDates.some(d=>caps[d].occ>caps[d].baseHard);
+  if(!hasAuto && !overloaded) return;
+  if(confirm('繰り越しで配分が過密になっている可能性があります。配分を再調整（プレビュー）しますか？')){allocWeekStart=parseD(wsStr);switchTab('alloc');showAllocPreview(wsStr,{});}
+}
 async function applyAllocation(weekDates,perDay){
   const rm=TASKS.filter(t=>t.origin==='auto'&&t.status!=='done'&&weekDates.includes(t.date));
   for(const t of rm)await delV('tasks',t.id);
@@ -1144,7 +1209,7 @@ function openJsonImport(){
 }
 
 /* ================= 自動更新 ================= */
-const APP_VERSION='v7';
+const APP_VERSION='v8';
 async function checkUpdate(){
   try{
     const r=await fetch('./version.json?ts='+Date.now(),{cache:'no-store'});
