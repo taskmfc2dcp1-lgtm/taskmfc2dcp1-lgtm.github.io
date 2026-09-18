@@ -799,12 +799,13 @@ $('#btnData').onclick=()=>{
     <div class="list-item" data-d="theme"><span class="li-ic">◐</span>テーマ切替（自動 / 明 / 暗）</div>
     <div class="list-item" data-d="haptics"><span class="li-ic">〜</span>完了時の振動：<span id="hapState" style="margin-left:4px;color:var(--accent)">${HAPTICS?'ON':'OFF'}</span></div>
     <div class="list-item" data-d="subjects"><span class="li-ic">＃</span>科目・教材を管理</div>
+    <div class="list-item" data-d="repair"><span class="li-ic">⟲</span>繰越した配分予定を修復（再配分の対象に戻す）</div>
     <div class="list-item" data-d="export"><span class="li-ic">⤓</span>バックアップを書き出す</div>
     <div class="list-item" data-d="import"><span class="li-ic">⤒</span>バックアップから復元</div>
     <div class="hint" style="margin-top:14px">データはこの端末の中だけに保存されています。機種変更や消去に備え、ときどき「書き出し」で控えを保存してください。</div>
     <input type="file" id="importFile" accept="application/json" style="display:none">`, e=>{
     const it=e.target.closest('[data-d]');if(!it)return;const d=it.dataset.d;
-    if(d==='theme')cycleTheme(); if(d==='haptics'){HAPTICS=!HAPTICS;setS('haptics',HAPTICS);$('#hapState').textContent=HAPTICS?'ON':'OFF';if(HAPTICS&&navigator.vibrate)navigator.vibrate(18);} if(d==='subjects')openSubjects(); if(d==='export')exportData(); if(d==='import')$('#importFile').click();});
+    if(d==='theme')cycleTheme(); if(d==='haptics'){HAPTICS=!HAPTICS;setS('haptics',HAPTICS);$('#hapState').textContent=HAPTICS?'ON':'OFF';if(HAPTICS&&navigator.vibrate)navigator.vibrate(18);} if(d==='subjects')openSubjects(); if(d==='repair')openRepair(); if(d==='export')exportData(); if(d==='import')$('#importFile').click();});
   $('#importFile').onchange=importData;
 };
 async function cycleTheme(){const cur=await getS('theme','auto');const next=cur==='auto'?'light':cur==='light'?'dark':'auto';await setS('theme',next);applyTheme(next);toast('テーマ：'+({auto:'自動',light:'明るい',dark:'暗い'}[next]));}
@@ -1113,6 +1114,29 @@ async function sendShortfallToNextWeek(wsStr,res){
   return leftover;
 }
 // 繰越後：過密なら再配分を提案（プレビュー付き半自動）
+/* 繰越した配分予定を auto に戻す（旧版で manual 化したものの修復） */
+function repairCandidates(){
+  return TASKS.filter(t=>
+    t.origin==='manual' && t.status!=='done' && (t.carryCount||0)>0 &&
+    ( (t.planUnits>0 && t.materialId) || /（配分）$/.test(t.title||'') )
+  );
+}
+function openRepair(){
+  const list=repairCandidates();
+  if(!list.length){ sheet(`<h2>繰越した配分予定を修復</h2><div class="hint">対象はありません。すべて正常です。</div><div class="actions"><button class="btn primary" id="rpClose">閉じる</button></div>`); $('#rpClose').onclick=closeSheet; return; }
+  const byDate={}; list.forEach(t=>{(byDate[t.date]||(byDate[t.date]=[])).push(t);});
+  const rows=Object.keys(byDate).sort().map(d=>{const dd=parseD(d);
+    return `<div class="pvday">${dd.getMonth()+1}/${dd.getDate()}（${wkOf(d)}）</div>`+byDate[d].map(t=>`<div class="pvrow"><span class="pd" style="background:${colorOf(t.subject)}"></span><span class="pn">${esc(t.title)}</span><span class="pv num">${fmtDur(t.plannedMin||0)}</span></div>`).join('');}).join('');
+  sheet(`<h2>繰越した配分予定を修復</h2>
+    <div class="hint" style="margin-bottom:8px"><b>${list.length}件</b>を「配分由来」と判定しました。実行すると再配分の対象に戻り、次回の配分で自動的に組み直されます（手で作った予定・完了済みは対象外）。<br>念のため、先に「バックアップを書き出す」をおすすめします。</div>
+    ${rows}
+    <div class="actions"><button class="btn ghost" id="rpCancel">キャンセル</button><button class="btn primary" id="rpGo">${list.length}件を修復</button></div>`);
+  $('#rpCancel').onclick=closeSheet;
+  $('#rpGo').onclick=async()=>{
+    for(const t of list){ t.origin='auto'; await putV('tasks',t); }
+    closeSheet(); renderPlan(); toast(`${list.length}件を修復しました`);
+  };
+}
 async function offerReallocation(wsStr){
   const weekDates=[];for(let i=0;i<7;i++)weekDates.push(addDays(wsStr,i));
   const hasAuto=TASKS.some(t=>t.origin==='auto'&&t.status!=='done'&&weekDates.includes(t.date));
@@ -1221,7 +1245,7 @@ function openJsonImport(){
 }
 
 /* ================= 自動更新 ================= */
-const APP_VERSION='v10';
+const APP_VERSION='v11';
 async function checkUpdate(){
   try{
     const r=await fetch('./version.json?ts='+Date.now(),{cache:'no-store'});
