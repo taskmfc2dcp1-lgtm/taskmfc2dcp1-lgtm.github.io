@@ -558,8 +558,8 @@ $('#planBody').addEventListener('click',e=>{
   const task=e.target.closest('.task'); if(task) openTaskSheet(task.dataset.id);
 });
 async function toggleDone(id){const t=TASKS.find(x=>x.id===id);if(!t)return;t.status=t.status==='done'?'todo':'done';await putV('tasks',t);renderPlan();}
-$('#carryOverdue').onclick=async()=>{const td=today();const g=TASKS.filter(t=>t.status!=='done'&&t.date<td);if(!g.length){toast('期限切れの未完了はありません');return;}if(!confirm(`${g.length}件を今日へ繰り越しますか？`))return;for(const t of g){t.date=td;t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);offerReallocation(dstr(mondayOf(new Date())));};
-$('#carryNextWeek').onclick=async()=>{const ws=dstr(weekStart),we=addDays(ws,6);const g=TASKS.filter(t=>t.status!=='done'&&t.date>=ws&&t.date<=we);if(!g.length){toast('今週の未完了はありません');return;}if(!confirm(`${g.length}件を来週へ繰り越しますか？`))return;for(const t of g){t.date=addDays(t.date,7);t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);offerReallocation(addDays(ws,7));};
+$('#carryOverdue').onclick=async()=>{const td=today();const g=TASKS.filter(t=>t.status!=='done'&&t.date<td);if(!g.length){toast('期限切れの未完了はありません');return;}if(!confirm(`${g.length}件を今日へ繰り越しますか？`))return;for(const t of g){t.date=td;t.carryCount=(t.carryCount||0)+1;await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);offerReallocation(dstr(mondayOf(new Date())));};
+$('#carryNextWeek').onclick=async()=>{const ws=dstr(weekStart),we=addDays(ws,6);const g=TASKS.filter(t=>t.status!=='done'&&t.date>=ws&&t.date<=we);if(!g.length){toast('今週の未完了はありません');return;}if(!confirm(`${g.length}件を来週へ繰り越しますか？`))return;for(const t of g){t.date=addDays(t.date,7);t.carryCount=(t.carryCount||0)+1;await putV('tasks',t);}renderPlan();toast(`${g.length}件を繰越`);offerReallocation(addDays(ws,7));};
 
 /* ================= 予定の追加・編集 ================= */
 function todayRemainHTML(){
@@ -611,7 +611,7 @@ function openTaskSheet(id){
     if(act==='done'){await toggleDone(id);closeSheet();}
     if(act==='timer'){closeSheet();startTimer(t.subject,id,t.title,t.materialId);switchTab('timer');}
     if(act==='rec'){closeSheet();openSessionEdit(null,{taskId:id});}
-    if(act==='c1'||act==='c7'){t.date=addDays(t.date,act==='c1'?1:7);t.carryCount=(t.carryCount||0)+1;t.origin='manual';await putV('tasks',t);closeSheet();renderPlan();toast('繰り越しました');offerReallocation(dstr(mondayOf(parseD(t.date))));}
+    if(act==='c1'||act==='c7'){t.date=addDays(t.date,act==='c1'?1:7);t.carryCount=(t.carryCount||0)+1;await putV('tasks',t);closeSheet();renderPlan();toast('繰り越しました');offerReallocation(dstr(mondayOf(parseD(t.date))));}
     if(act==='edit'){openTaskForm(null,t);}
     if(act==='del'){removeTask(id);}
   });
@@ -986,10 +986,18 @@ function allocateV4(weekDates, caps, subjTargets, matTargets, mats, useSoft){
   });
 
   // 4) フロア（科目日次下限。教材で満たした分も算入）
+  //    ※教材ターゲットのある科目は汎用補填しない（教材なしブロックを作らない）。満たせない日は floorMiss に記録。
+  const floorMiss=[];
   subjTargets.filter(t=>t.floorMin>0||t.floorPct>0).forEach(t=>{
-    weekDates.forEach(d=>{ if(dayRemain[d]<=0) return;
+    weekDates.forEach(d=>{
       let need=Math.max(t.floorMin||0, Math.floor(capOf(d)*(t.floorPct||0)/100)); need=Math.round(need/5)*5;
-      let add=need-(daySubj[d][t.subject]||0); if(add>0){ add=Math.min(add,dayRemain[d]); add=Math.floor(add/5)*5; if(add>0){ place(d,t.subject,null,add); dayRemain[d]-=add; } } });
+      const have=daySubj[d][t.subject]||0; let add=need-have;
+      if(add<=0) return;
+      if(subjWithMat.has(t.subject)){ if(capOf(d)>0) floorMiss.push({subject:t.subject,date:d,min:add}); return; }
+      if(dayRemain[d]<=0) return;
+      add=Math.min(add,dayRemain[d]); add=Math.floor(add/5)*5;
+      if(add>0){ place(d,t.subject,null,add); dayRemain[d]-=add; }
+    });
   });
 
   // 5) 科目週目標まで汎用で充填（※教材別ターゲットのある科目は汎用充填しない＝案A）
@@ -1006,7 +1014,7 @@ function allocateV4(weekDates, caps, subjTargets, matTargets, mats, useSoft){
   const surplus=weekDates.reduce((a,d)=>a+dayRemain[d],0);
   // perDay を配列に整形
   const out={}; weekDates.forEach(d=>{out[d]=Object.values(perDay[d]).filter(p=>p.min>0);});
-  return {perDay:out, subjShort, matShort, extensions, surplus};
+  return {perDay:out, subjShort, matShort, extensions, surplus, floorMiss};
 }
 
 function renderAlloc(){
@@ -1054,6 +1062,10 @@ function showAllocPreview(wsStr, opts){
       const u=p.materialId?` <span style="color:var(--faint)">約${Math.round(p.min/mpuOf(p.materialId)*10)/10}${unitLabelOf(p.materialId)}</span>`:'';
       h+=`<div class="pvrow">${ic}<span class="pn">${esc(nm)}${u}</span><span class="pv num">${fmtDur(p.min)}</span></div>`;});});
   const hasShort=res.matShort.length||res.subjShort.length;
+  if(res.floorMiss&&res.floorMiss.length){
+    const bySub={}; res.floorMiss.forEach(x=>{bySub[x.subject]=(bySub[x.subject]||0)+1;});
+    h+=`<div class="pvwarn" style="border-color:var(--line)">ℹ 毎日の下限に届かない日があります：`+Object.entries(bySub).map(([s,n])=>`${esc(s)} ${n}日`).join(' ／ ')+`<br>教材の週次量またはCAPを増やすと埋まります（教材なしの穴埋めはしない設定）。</div>`;
+  }
   if(hasShort){const probs=[];
     if(res.matShort.length) probs.push('教材：'+res.matShort.map(s=>`${esc(materialName(s.materialId))} あと${s.units}${unitLabelOf(s.materialId)}`).join(' ／ '));
     if(res.subjShort.length) probs.push('科目：'+res.subjShort.map(s=>`${esc(s.subject)} あと${fmtDur(s.short)}`).join(' ／ '));
@@ -1096,7 +1108,7 @@ async function sendShortfallToNextWeek(wsStr,res){
     if(!done){for(const d of order){const ov=blk.min-rem[d];if(rem[d]>0&&ov>0&&ov<=25){placed[d][blk.materialId]=(placed[d][blk.materialId]||0)+blk.min;rem[d]=0;done=true;break;}}}
     if(!done)leftover+=blk.min;});
   for(const d of nd){for(const mid in placed[d]){const min=placed[d][mid];if(min<=0)continue;
-    const rec={id:uid(),title:materialName(mid)+'（繰越）',subject:matById(mid)?matById(mid).subjectName:'',materialId:mid,planUnits:Math.round(min/mpuOf(mid)*100)/100,date:d,time:'',plannedMin:min,status:'todo',carryCount:1,origin:'manual',createdTs:Date.now()};
+    const rec={id:uid(),title:materialName(mid)+'（繰越）',subject:matById(mid)?matById(mid).subjectName:'',materialId:mid,planUnits:Math.round(min/mpuOf(mid)*100)/100,date:d,time:'',plannedMin:min,status:'todo',carryCount:1,origin:'auto',createdTs:Date.now()};
     await putV('tasks',rec);TASKS.push(rec);}}
   return leftover;
 }
@@ -1209,7 +1221,7 @@ function openJsonImport(){
 }
 
 /* ================= 自動更新 ================= */
-const APP_VERSION='v8';
+const APP_VERSION='v10';
 async function checkUpdate(){
   try{
     const r=await fetch('./version.json?ts='+Date.now(),{cache:'no-store'});
